@@ -1,20 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
-
-void main() {
-  runApp(const SFunciones());
-}
+import 'package:proyecto_cine_equipo3/Vista/Taquilla/SeleccionBoletos.dart';
 
 class SFunciones extends StatelessWidget {
   const SFunciones({super.key});
 
   @override
   Widget build(BuildContext context) {
-    return const MaterialApp(
-      debugShowCheckedModeBanner: false,
-      home: Scaffold(
-        body: SeleccionFunciones(),
-      ),
+    return const Scaffold(
+      body: SeleccionFunciones(),
     );
   }
 }
@@ -59,7 +53,14 @@ class _SeleccionFuncionesState extends State<SeleccionFunciones> {
         ),
         side: const BorderSide(color: Colors.black, width: 1),
       ),
-      onPressed: onPressed,
+      onPressed: () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => const SBoletos(),
+          ),
+        );
+      },
       child: Text(
         texto,
         style: const TextStyle(fontSize: 14),
@@ -236,7 +237,9 @@ class _SeleccionFuncionesState extends State<SeleccionFunciones> {
                             IconButton(
                               icon: const Icon(Icons.arrow_back,
                                   color: Colors.white),
-                              onPressed: () {},
+                              onPressed: () {
+                                Navigator.pop(context);
+                              },
                             ),
                             const SizedBox(width: 10),
                             const Text(

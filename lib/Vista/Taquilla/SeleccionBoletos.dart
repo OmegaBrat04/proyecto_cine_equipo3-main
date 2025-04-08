@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:proyecto_cine_equipo3/Vista/Taquilla/SeleccionAsientos.dart';
 
 void main() {
   runApp(const SBoletos());
@@ -10,12 +11,10 @@ class SBoletos extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const MaterialApp(
-      debugShowCheckedModeBanner: false,
-      home: Scaffold(
+    return Scaffold(
         body: SeleccionBoletos(),
-      ),
-    );
+      );
+    
   }
 }
 
@@ -164,7 +163,16 @@ class _SeleccionBoletosState extends State<SeleccionBoletos> {
                 ),
                 const SizedBox(width: 20),
                 ElevatedButton(
-                  onPressed: () {},
+                  onPressed: () {
+                    // Aquí puedes agregar la lógica para continuar con la compra
+                    // o navegar a otra pantalla.
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const SAsientos(),
+                      ),
+                    );
+                  },
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xFF0665A4),
                     padding: const EdgeInsets.symmetric(
@@ -280,7 +288,9 @@ class _SeleccionBoletosState extends State<SeleccionBoletos> {
                             IconButton(
                               icon: const Icon(Icons.arrow_back,
                                   color: Colors.white),
-                              onPressed: () {},
+                              onPressed: () {
+                                Navigator.pop(context);
+                              },
                             ),
                             const SizedBox(width: 10),
                             const Text(

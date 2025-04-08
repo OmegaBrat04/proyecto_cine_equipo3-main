@@ -1,34 +1,35 @@
 import 'package:flutter/material.dart';
-import 'package:proyecto_cine_equipo3/Vista/Taquilla/PagoTaquilla.dart';
 
 void main() {
-  runApp(const SAsientos());
+  runApp(const STaquilla());
 }
 
-class SAsientos extends StatelessWidget {
-  const SAsientos({super.key});
+class STaquilla extends StatelessWidget {
+  const STaquilla({super.key});
 
   @override
   Widget build(BuildContext context) {
     return const Scaffold(
-      body: SeleccionAsientos(),
-    );
+        body: VentanaPagos(),
+      );
+    
   }
 }
 
-class SeleccionAsientos extends StatefulWidget {
-  const SeleccionAsientos({super.key});
+class VentanaPagos extends StatefulWidget {
+  const VentanaPagos({super.key});
 
   @override
-  _SeleccionAsientosState createState() => _SeleccionAsientosState();
+  _VentanaPagosState createState() => _VentanaPagosState();
 }
 
-class _SeleccionAsientosState extends State<SeleccionAsientos> {
+class _VentanaPagosState extends State<VentanaPagos> {
   final String titulo = 'Jurassic Park';
   final String fecha = '15/07/2025';
   final String horario = '16:00';
   final String sala = '1';
   final String boletos = '2';
+  final String asientos = 'A1, A2';
 
   Widget TarjetaPelicula(
     String titulo,
@@ -36,6 +37,7 @@ class _SeleccionAsientosState extends State<SeleccionAsientos> {
     String horario,
     String sala,
     String boletos,
+    String asientos,
   ) {
     return Card(
       color: Colors.grey[200],
@@ -107,6 +109,14 @@ class _SeleccionAsientosState extends State<SeleccionAsientos> {
                     ),
                   ),
                   const SizedBox(height: 5),
+                  Text(
+                    'Asientos: $asientos',
+                    style: const TextStyle(
+                      fontSize: 14,
+                      color: Colors.black54,
+                    ),
+                  ),
+                  const SizedBox(height: 5),
                 ],
               ),
             ),
@@ -116,194 +126,130 @@ class _SeleccionAsientosState extends State<SeleccionAsientos> {
     );
   }
 
-  Widget SeleccionAsientos() {
-    return SingleChildScrollView(
-      child: Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: Colors.grey[200],
-          borderRadius: BorderRadius.circular(10),
-        ),
-        child: Column(
-          children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
+  Widget SecciondePago() {
+    bool esMiembro = false;
+    bool usarCashback = false;
+
+    return StatefulBuilder(
+      builder: (BuildContext context, StateSetter setState) {
+        return Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: Colors.grey[200],
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Checkbox(
+                    value: esMiembro,
+                    onChanged: (bool? value) {
+                      setState(() {
+                        esMiembro = value!;
+                      });
+                    },
+                  ),
+                  const Text(
+                    'Miembros',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.black,
+                    ),
+                  ),
+                ],
+              ),
+              if (esMiembro) ...[
+                const SizedBox(height: 10),
+                TextFields('Nombre'),
+                const SizedBox(height: 10),
+                TextFields('Apellido'),
+                const SizedBox(height: 10),
+                TextFields('Teléfono'),
+                const SizedBox(height: 10),
+                TextFields('Cashback'),
+                const SizedBox(height: 10),
                 Row(
                   children: [
-                    SizedBox.square(
-                      dimension: 30,
-                      child: Container(
-                        color: const Color(0xFFFAB802),
-                      ),
+                    Checkbox(
+                      value: usarCashback,
+                      onChanged: (bool? value) {
+                        setState(() {
+                          usarCashback = value!;
+                        });
+                      },
                     ),
-                    const SizedBox(width: 8),
                     const Text(
-                      'Asiento Seleccionado',
+                      'Usar Cashback',
                       style: TextStyle(
                         fontSize: 16,
-                        color: Colors.black,
-                      ),
-                    ),
-                  ],
-                ),
-                Row(
-                  children: [
-                    SizedBox.square(
-                      dimension: 30,
-                      child: Container(
-                        color: const Color(0xFF767676),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    const Text(
-                      'Ocupado',
-                      style: TextStyle(
-                        fontSize: 16,
-                        color: Colors.black,
-                      ),
-                    ),
-                  ],
-                ),
-                Row(
-                  children: [
-                    SizedBox.square(
-                      dimension: 30,
-                      child: Container(
-                        color: const Color(0xFF14AE5C),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    const Text(
-                      'Disponible',
-                      style: TextStyle(
-                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
                         color: Colors.black,
                       ),
                     ),
                   ],
                 ),
               ],
-            ),
-            const SizedBox(
-              height: 5,
-            ),
-            const Divider(
-              color: Colors.black54,
-              thickness: 1,
-            ),
-            const SizedBox(
-              height: 5,
-            ),
-            Container(
-              height: 30,
-              color: Color(0XFF767676),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Text('PANTALLA',
-                      style: TextStyle(color: Colors.white, fontSize: 20)),
-                ],
+              const SizedBox(height: 20),
+              const Text(
+                'Total: \$0.00',
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.black,
+                ),
               ),
-            ),
-            const SizedBox(
-              height: 10,
-            ),
-            Asientos(),
-            const SizedBox(height: 8),
-            Asientos(),
-            const SizedBox(height: 8),
-            Asientos(),
-            const SizedBox(height: 8),
-            Asientos(),
-            const SizedBox(height: 5),
-          ],
-        ),
-      ),
+              const SizedBox(height: 10),
+              TextFields('Monto Recibido'),
+              const SizedBox(height: 10),
+              TextFields('Cambio'),
+              const SizedBox(height: 20),
+              Align(
+                alignment: Alignment.centerRight,
+                child: ElevatedButton(
+                  onPressed: () {},
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF0665A4),
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 20, vertical: 15),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                  ),
+                  child: const Text(
+                    'Pagar',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
 
-  Widget Asientos() {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        Row(
-          children: [
-            IconButton(
-                onPressed: () {},
-                icon: const Icon(
-                  Icons.chair_rounded,
-                  color: Color(0xFF14AE5C),
-                  size: 30,
-                )),
-            const SizedBox(width: 8),
-            IconButton(
-                onPressed: () {},
-                icon: const Icon(
-                  Icons.chair_rounded,
-                  color: Color(0xFF14AE5C),
-                  size: 30,
-                )),
-          ],
+  Widget TextFields(String label) {
+    return TextField(
+      decoration: InputDecoration(
+        labelText: label,
+        labelStyle: const TextStyle(
+          fontSize: 14,
+          color: Colors.black54,
         ),
-        Row(
-          children: [
-            IconButton(
-                onPressed: () {},
-                icon: const Icon(
-                  Icons.chair_rounded,
-                  color: Color(0xFF14AE5C),
-                  size: 30,
-                )),
-            const SizedBox(width: 8),
-            IconButton(
-                onPressed: () {},
-                icon: const Icon(
-                  Icons.chair_rounded,
-                  color: Color(0xFF14AE5C),
-                  size: 30,
-                )),
-          ],
+        filled: true,
+        fillColor: Colors.white,
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(5),
+          borderSide: BorderSide.none,
         ),
-        Row(
-          children: [
-            IconButton(
-                onPressed: () {},
-                icon: const Icon(
-                  Icons.chair_rounded,
-                  color: Color(0xFF14AE5C),
-                  size: 30,
-                )),
-            const SizedBox(width: 8),
-            IconButton(
-                onPressed: () {},
-                icon: const Icon(
-                  Icons.chair_rounded,
-                  color: Color(0xFF14AE5C),
-                  size: 30,
-                )),
-          ],
-        ),
-        Row(
-          children: [
-            IconButton(
-                onPressed: () {},
-                icon: const Icon(
-                  Icons.chair_rounded,
-                  color: Color(0xFF14AE5C),
-                  size: 30,
-                )),
-            const SizedBox(width: 8),
-            IconButton(
-                onPressed: () {},
-                icon: const Icon(
-                  Icons.chair_rounded,
-                  color: Color(0xFF14AE5C),
-                  size: 30,
-                )),
-          ],
-        ),
-      ],
+      ),
     );
   }
 
@@ -351,7 +297,7 @@ class _SeleccionAsientosState extends State<SeleccionAsientos> {
                           ],
                         ),
                         const Text(
-                          'Seleccion de Asientos',
+                          'Pago',
                           style: TextStyle(
                             color: Colors.white,
                             fontSize: 20,
@@ -377,7 +323,6 @@ class _SeleccionAsientosState extends State<SeleccionAsientos> {
                       children: [
                         Container(
                           width: 900,
-                          height: 550,
                           padding: const EdgeInsets.all(16),
                           decoration: BoxDecoration(
                             color: const Color(0xff081C42),
@@ -394,52 +339,26 @@ class _SeleccionAsientosState extends State<SeleccionAsientos> {
                             child: Column(
                               children: [
                                 TarjetaPelicula(
-                                    titulo, fecha, horario, sala, boletos),
+                                  titulo,
+                                  fecha,
+                                  horario,
+                                  sala,
+                                  boletos,
+                                  asientos,
+                                ),
                                 const SizedBox(height: 20),
-                                SeleccionAsientos(),
-                                const SizedBox(height: 10),
+                                SecciondePago(),
                               ],
                             ),
                           ),
-                        )
+                        ),
                       ],
                     ),
                   ),
                 ],
               ),
             ),
-          ),
-          Positioned(
-            bottom: 20,
-            right: 20,
-            child: ElevatedButton(
-              onPressed: () {
-                // Acción al presionar el botón "Continuar"
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => const STaquilla(),
-                  ),
-                );
-              },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF0665A4),
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 20, vertical: 15),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(10),
-                ),
-              ),
-              child: const Text(
-                'Continuar',
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.white,
-                ),
-              ),
-            ),
-          ),
+          )
         ],
       ),
     );
