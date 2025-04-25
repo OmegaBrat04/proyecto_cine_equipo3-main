@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:proyecto_cine_equipo3/Vista/Administracion/ListaCombos.dart';
+import 'package:proyecto_cine_equipo3/Vista/Dulceria/CarritoDulceria.dart';
 import 'package:proyecto_cine_equipo3/Vista/Services/SeleccionconTarjetasTamaños.dart';
 
 void main() {
@@ -12,10 +13,7 @@ class ListaVentaDulceria extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const MaterialApp(
-      debugShowCheckedModeBanner: false,
-      home: Scaffold(body: Lista()),
-    );
+    return Scaffold(body: Lista());
   }
 }
 
@@ -328,7 +326,14 @@ class _ListaState extends State<Lista> {
             bottom: 20,
             right: 20,
             child: ElevatedButton(
-              onPressed: () {},
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const CarritoDulceria(),
+                  ),
+                );
+              },
               style: ElevatedButton.styleFrom(
                 backgroundColor: const Color(0xFF0665A4),
                 padding:
