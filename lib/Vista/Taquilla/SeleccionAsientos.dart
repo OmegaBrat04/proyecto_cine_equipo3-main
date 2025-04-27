@@ -1,34 +1,170 @@
 import 'package:flutter/material.dart';
+import 'package:proyecto_cine_equipo3/Controlador/Taquilla/Proceso.dart';
 import 'package:proyecto_cine_equipo3/Vista/Taquilla/PagoTaquilla.dart';
 
-void main() {
-  runApp(const SAsientos());
-}
-
 class SAsientos extends StatelessWidget {
-  const SAsientos({super.key});
+  final String titulo;
+  final String fecha;
+  final String horario;
+  final String sala;
+  final String boletos;
+  final String poster;
+  final double total;
+
+  const SAsientos({
+    super.key,
+    required this.titulo,
+    required this.fecha,
+    required this.horario,
+    required this.sala,
+    required this.boletos,
+    required this.poster,
+    required this.total,
+  });
 
   @override
   Widget build(BuildContext context) {
-    return const Scaffold(
-      body: SeleccionAsientos(),
+    return Scaffold(
+      body: SeleccionAsientos(
+        titulo: titulo,
+        fecha: fecha,
+        horario: horario,
+        sala: sala,
+        boletos: boletos,
+        poster: poster,
+        total: total,
+      ),
     );
   }
 }
 
 class SeleccionAsientos extends StatefulWidget {
-  const SeleccionAsientos({super.key});
+  final String titulo;
+  final String fecha;
+  final String horario;
+  final String sala;
+  final String boletos;
+  final String poster;
+  final double total;
+
+  const SeleccionAsientos({
+    super.key,
+    required this.titulo,
+    required this.fecha,
+    required this.horario,
+    required this.sala,
+    required this.boletos,
+    required this.poster,
+    required this.total,
+  });
 
   @override
   _SeleccionAsientosState createState() => _SeleccionAsientosState();
 }
 
 class _SeleccionAsientosState extends State<SeleccionAsientos> {
-  final String titulo = 'Jurassic Park';
-  final String fecha = '15/07/2025';
-  final String horario = '16:00';
-  final String sala = '1';
-  final String boletos = '2';
+  late List<Map<String, dynamic>> asientos;
+  int asientosPermitidos = 0;
+  int asientosActualmenteSeleccionados = 0;
+  final AsientosController asientosController = AsientosController();
+
+ @override
+void initState() {
+  super.initState();
+  inicializarAsientos();
+  asientosPermitidos = int.tryParse(widget.boletos) ?? 0;
+}
+
+
+  Future<void> inicializarAsientos() async {
+    asientos = List.generate(32, (index) {
+      int fila = index ~/ 8; // 0, 1, 2, 3
+      int columna = index % 8; // 0..7
+      String letraFila = String.fromCharCode(65 + fila); // 'A', 'B', 'C', 'D'
+      return {
+        'ocupado': false,
+        'seleccionado': false,
+        'id': '$letraFila${columna + 1}',
+      };
+    });
+
+    try {
+      List<String> ocupados = await asientosController.cargarAsientosOcupados(
+        fecha: widget.fecha,
+        horario: widget.horario,
+        sala: widget.sala,
+      );
+
+      setState(() {
+        for (var id in ocupados) {
+          int index = asientos.indexWhere((asiento) => asiento['id'] == id);
+          if (index != -1) {
+            asientos[index]['ocupado'] = true;
+          }
+        }
+      });
+    } catch (e) {
+      // Manejo de errores al cargar asientos ocupados
+      print('Error al cargar asientos ocupados: $e');
+    }
+  }
+
+  void seleccionarAsiento(int index) {
+    setState(() {
+      if (asientos[index]['ocupado']) return;
+
+      if (asientos[index]['seleccionado']) {
+        // Deseleccionar
+        asientos[index]['seleccionado'] = false;
+        asientosActualmenteSeleccionados--;
+      } else {
+        if (asientosActualmenteSeleccionados < asientosPermitidos) {
+          // Seleccionar
+          asientos[index]['seleccionado'] = true;
+          asientosActualmenteSeleccionados++;
+        }
+      }
+    });
+  }
+
+  Widget Asientos() {
+    return GridView.builder(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: 8,
+        mainAxisSpacing: 8,
+        crossAxisSpacing: 8,
+      ),
+      itemCount: asientos.length,
+      itemBuilder: (context, index) {
+        return Column(
+          children: [
+            IconButton(
+              onPressed: asientos[index]['ocupado']
+                  ? null
+                  : () {
+                      seleccionarAsiento(index);
+                    },
+              icon: Icon(
+                Icons.chair_rounded,
+                size: 30,
+                color: asientos[index]['ocupado']
+                    ? const Color(0xFF767676)
+                    : asientos[index]['seleccionado']
+                        ? const Color(0xFFFAB802)
+                        : const Color(0xFF14AE5C),
+              ),
+            ),
+            Text(
+              asientos[index]['id'],
+              style: const TextStyle(fontSize: 12, color: Colors.black),
+            ),
+          ],
+        );
+      },
+    );
+  }
 
   Widget TarjetaPelicula(
     String titulo,
@@ -52,7 +188,7 @@ class _SeleccionAsientosState extends State<SeleccionAsientos> {
               height: 120,
               decoration: BoxDecoration(
                 image: DecorationImage(
-                  image: Image.asset('images/Poster JWR.jpeg').image,
+                  image: NetworkImage('http://localhost:3000/${widget.poster}'),
                   fit: BoxFit.cover,
                 ),
               ),
@@ -211,99 +347,9 @@ class _SeleccionAsientosState extends State<SeleccionAsientos> {
             ),
             Asientos(),
             const SizedBox(height: 8),
-            Asientos(),
-            const SizedBox(height: 8),
-            Asientos(),
-            const SizedBox(height: 8),
-            Asientos(),
-            const SizedBox(height: 5),
           ],
         ),
       ),
-    );
-  }
-
-  Widget Asientos() {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        Row(
-          children: [
-            IconButton(
-                onPressed: () {},
-                icon: const Icon(
-                  Icons.chair_rounded,
-                  color: Color(0xFF14AE5C),
-                  size: 30,
-                )),
-            const SizedBox(width: 8),
-            IconButton(
-                onPressed: () {},
-                icon: const Icon(
-                  Icons.chair_rounded,
-                  color: Color(0xFF14AE5C),
-                  size: 30,
-                )),
-          ],
-        ),
-        Row(
-          children: [
-            IconButton(
-                onPressed: () {},
-                icon: const Icon(
-                  Icons.chair_rounded,
-                  color: Color(0xFF14AE5C),
-                  size: 30,
-                )),
-            const SizedBox(width: 8),
-            IconButton(
-                onPressed: () {},
-                icon: const Icon(
-                  Icons.chair_rounded,
-                  color: Color(0xFF14AE5C),
-                  size: 30,
-                )),
-          ],
-        ),
-        Row(
-          children: [
-            IconButton(
-                onPressed: () {},
-                icon: const Icon(
-                  Icons.chair_rounded,
-                  color: Color(0xFF14AE5C),
-                  size: 30,
-                )),
-            const SizedBox(width: 8),
-            IconButton(
-                onPressed: () {},
-                icon: const Icon(
-                  Icons.chair_rounded,
-                  color: Color(0xFF14AE5C),
-                  size: 30,
-                )),
-          ],
-        ),
-        Row(
-          children: [
-            IconButton(
-                onPressed: () {},
-                icon: const Icon(
-                  Icons.chair_rounded,
-                  color: Color(0xFF14AE5C),
-                  size: 30,
-                )),
-            const SizedBox(width: 8),
-            IconButton(
-                onPressed: () {},
-                icon: const Icon(
-                  Icons.chair_rounded,
-                  color: Color(0xFF14AE5C),
-                  size: 30,
-                )),
-          ],
-        ),
-      ],
     );
   }
 
@@ -394,7 +440,12 @@ class _SeleccionAsientosState extends State<SeleccionAsientos> {
                             child: Column(
                               children: [
                                 TarjetaPelicula(
-                                    titulo, fecha, horario, sala, boletos),
+                                  widget.titulo,
+                                  widget.fecha,
+                                  widget.horario,
+                                  widget.sala,
+                                  widget.boletos,
+                                ),
                                 const SizedBox(height: 20),
                                 SeleccionAsientos(),
                                 const SizedBox(height: 10),
@@ -414,11 +465,26 @@ class _SeleccionAsientosState extends State<SeleccionAsientos> {
             right: 20,
             child: ElevatedButton(
               onPressed: () {
-                // Acción al presionar el botón "Continuar"
+                List<String> asientosSeleccionados = asientos
+                    .where((asiento) => asiento['seleccionado'])
+                    .map((asiento) => asiento['id'] as String)
+                    .toList();
+
+                String asientosString = asientosSeleccionados.join(', ');
+
                 Navigator.push(
                   context,
                   MaterialPageRoute(
-                    builder: (context) => const STaquilla(),
+                    builder: (context) => STaquilla(
+                      titulo: widget.titulo,
+                      fecha: widget.fecha,
+                      horario: widget.horario,
+                      sala: widget.sala,
+                      boletos: widget.boletos,
+                      poster: widget.poster,
+                      asientos: asientosString,
+                      total: widget.total,
+                    ),
                   ),
                 );
               },

@@ -1,35 +1,179 @@
-import 'package:flutter/material.dart';
+import 'dart:convert';
 
-void main() {
-  runApp(const STaquilla());
-}
+import 'package:flutter/material.dart';
+import 'package:proyecto_cine_equipo3/Controlador/Taquilla/Proceso.dart';
+import 'package:proyecto_cine_equipo3/Vista/Taquilla/TicketCompra.dart';
 
 class STaquilla extends StatelessWidget {
-  const STaquilla({super.key});
+  final String titulo;
+  final String fecha;
+  final String horario;
+  final String sala;
+  final String boletos;
+  final String asientos;
+  final String poster;
+  final double total;
+
+  const STaquilla({
+    super.key,
+    required this.titulo,
+    required this.fecha,
+    required this.horario,
+    required this.sala,
+    required this.boletos,
+    required this.asientos,
+    required this.poster,
+    required this.total,
+  });
 
   @override
   Widget build(BuildContext context) {
-    return const Scaffold(
-        body: VentanaPagos(),
-      );
-    
+    return Scaffold(
+      body: VentanaPagos(
+        titulo: titulo,
+        fecha: fecha,
+        horario: horario,
+        sala: sala,
+        boletos: boletos,
+        asientos: asientos,
+        poster: poster,
+        total: total,
+      ),
+    );
   }
 }
 
 class VentanaPagos extends StatefulWidget {
-  const VentanaPagos({super.key});
+  final String titulo;
+  final String fecha;
+  final String horario;
+  final String sala;
+  final String boletos;
+  final String asientos;
+  final String poster;
+  final double total;
+
+  const VentanaPagos({
+    super.key,
+    required this.titulo,
+    required this.fecha,
+    required this.horario,
+    required this.sala,
+    required this.boletos,
+    required this.asientos,
+    required this.poster,
+    required this.total,
+  });
 
   @override
   _VentanaPagosState createState() => _VentanaPagosState();
 }
 
 class _VentanaPagosState extends State<VentanaPagos> {
-  final String titulo = 'Jurassic Park';
-  final String fecha = '15/07/2025';
-  final String horario = '16:00';
-  final String sala = '1';
-  final String boletos = '2';
-  final String asientos = 'A1, A2';
+  final PagoController pagoController = PagoController();
+
+  bool esMiembro = false;
+  bool usarCashback = false;
+  int? idMiembroEncontrado;
+  String nombreCliente = '';
+
+  final TextEditingController telefonoController = TextEditingController();
+  final TextEditingController cashbackController = TextEditingController();
+  final TextEditingController montoRecibidoController = TextEditingController();
+  final TextEditingController cambioController = TextEditingController();
+
+  double totalCompra = 0.0;
+  double totalConDescuento = 0.0;
+  String tipoMembresia = '';
+
+  void calcularCambioEnPantalla() {
+    double montoRecibido = double.tryParse(montoRecibidoController.text) ?? 0.0;
+
+    if (montoRecibido >= totalConDescuento) {
+      double cambio = pagoController.calcularCambio(
+        montoRecibido: montoRecibido,
+        total: totalConDescuento,
+      );
+      setState(() {
+        cambioController.text = cambio.toStringAsFixed(2);
+      });
+    } else {
+      setState(() {
+        cambioController.text = '';
+      });
+    }
+  }
+
+  double calcularNuevoCashback() {
+    double porcentaje = 0.0;
+    if (tipoMembresia == '3%') porcentaje = 0.03;
+    if (tipoMembresia == '5%') porcentaje = 0.05;
+    if (tipoMembresia == '7%') porcentaje = 0.07;
+    return totalCompra * porcentaje;
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    totalCompra = widget.total;
+    totalConDescuento = totalCompra;
+  }
+
+  Future<void> buscarMiembro() async {
+    if (!esMiembro) return;
+
+    if (telefonoController.text.length >= 8) {
+      try {
+        final miembro = await pagoController
+            .buscarMiembroPorTelefono(telefonoController.text);
+
+        if (miembro != null) {
+          idMiembroEncontrado = miembro['id_miembro'];
+          nombreCliente = miembro['nombre'];
+          tipoMembresia = miembro['tipo_membresia'];
+
+          double cashbackActualCompra =
+              pagoController.calcularCashback(totalCompra, tipoMembresia);
+          double cashbackAcumulado =
+              double.tryParse(miembro['cashback_acumulado'].toString()) ?? 0.0;
+
+          cashbackController.text =
+              (cashbackActualCompra + cashbackAcumulado).toStringAsFixed(2);
+
+          setState(() {
+            usarCashback = false;
+          });
+        } else {
+          tipoMembresia = '';
+          cashbackController.clear();
+          setState(() {
+            usarCashback = false;
+            totalConDescuento = totalCompra;
+          });
+        }
+      } catch (e) {
+        tipoMembresia = '';
+        cashbackController.clear();
+        setState(() {
+          usarCashback = false;
+          totalConDescuento = totalCompra;
+        });
+      }
+    }
+  }
+
+  void actualizarTotal() {
+    if (usarCashback && cashbackController.text.isNotEmpty) {
+      double cashback = double.parse(cashbackController.text);
+      setState(() {
+        totalConDescuento = totalCompra - cashback;
+      });
+    } else {
+      setState(() {
+        totalConDescuento = totalCompra;
+      });
+    }
+  }
 
   Widget TarjetaPelicula(
     String titulo,
@@ -54,7 +198,8 @@ class _VentanaPagosState extends State<VentanaPagos> {
               height: 120,
               decoration: BoxDecoration(
                 image: DecorationImage(
-                  image: Image.asset('images/Poster JWR.jpeg').image,
+                  image: NetworkImage(
+                      'http://localhost:3000/${widget.poster}'), // ✅
                   fit: BoxFit.cover,
                 ),
               ),
@@ -127,9 +272,6 @@ class _VentanaPagosState extends State<VentanaPagos> {
   }
 
   Widget SecciondePago() {
-    bool esMiembro = false;
-    bool usarCashback = false;
-
     return StatefulBuilder(
       builder: (BuildContext context, StateSetter setState) {
         return Container(
@@ -148,6 +290,12 @@ class _VentanaPagosState extends State<VentanaPagos> {
                     onChanged: (bool? value) {
                       setState(() {
                         esMiembro = value!;
+                        if (!esMiembro) {
+                          telefonoController.clear();
+                          cashbackController.clear();
+                          usarCashback = false;
+                          totalConDescuento = totalCompra;
+                        }
                       });
                     },
                   ),
@@ -163,13 +311,25 @@ class _VentanaPagosState extends State<VentanaPagos> {
               ),
               if (esMiembro) ...[
                 const SizedBox(height: 10),
-                TextFields('Nombre'),
+                TextField(
+                  controller: telefonoController,
+                  onChanged: (value) {
+                    buscarMiembro();
+                  },
+                  decoration: const InputDecoration(
+                    labelText: 'Teléfono',
+                    border: OutlineInputBorder(),
+                  ),
+                ),
                 const SizedBox(height: 10),
-                TextFields('Apellido'),
-                const SizedBox(height: 10),
-                TextFields('Teléfono'),
-                const SizedBox(height: 10),
-                TextFields('Cashback'),
+                TextField(
+                  controller: cashbackController,
+                  readOnly: true,
+                  decoration: const InputDecoration(
+                    labelText: 'Cashback Disponible',
+                    border: OutlineInputBorder(),
+                  ),
+                ),
                 const SizedBox(height: 10),
                 Row(
                   children: [
@@ -178,6 +338,7 @@ class _VentanaPagosState extends State<VentanaPagos> {
                       onChanged: (bool? value) {
                         setState(() {
                           usarCashback = value!;
+                          actualizarTotal();
                         });
                       },
                     ),
@@ -193,23 +354,108 @@ class _VentanaPagosState extends State<VentanaPagos> {
                 ),
               ],
               const SizedBox(height: 20),
-              const Text(
-                'Total: \$0.00',
-                style: TextStyle(
+              Text(
+                'Total: \$${totalConDescuento.toStringAsFixed(2)}',
+                style: const TextStyle(
                   fontSize: 18,
                   fontWeight: FontWeight.bold,
                   color: Colors.black,
                 ),
               ),
               const SizedBox(height: 10),
-              TextFields('Monto Recibido'),
+              TextField(
+                controller: montoRecibidoController,
+                keyboardType: TextInputType.number,
+                onChanged: (value) {
+                  calcularCambioEnPantalla();
+                },
+                decoration: const InputDecoration(
+                  labelText: 'Monto Recibido',
+                  border: OutlineInputBorder(),
+                ),
+              ),
               const SizedBox(height: 10),
-              TextFields('Cambio'),
+              TextField(
+                controller: cambioController,
+                decoration: const InputDecoration(
+                  labelText: 'Cambio',
+                  border: OutlineInputBorder(),
+                ),
+              ),
               const SizedBox(height: 20),
               Align(
                 alignment: Alignment.centerRight,
                 child: ElevatedButton(
-                  onPressed: () {},
+                  onPressed: () async {
+                    double montoRecibido =
+                        double.tryParse(montoRecibidoController.text) ?? 0.0;
+
+                    if (montoRecibido < totalConDescuento) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text(
+                              'El monto recibido no puede ser menor al total a pagar.'),
+                          backgroundColor: Colors.red,
+                        ),
+                      );
+                      return;
+                    }
+
+                    try {
+                      // Registrar el pago primero
+                      await pagoController.registrarPago(
+                        idMiembro: esMiembro ? idMiembroEncontrado : null,
+                        nombreCliente:
+                            esMiembro ? nombreCliente : 'Cliente General',
+                        montoTotal: totalConDescuento,
+                        montoRecibido: montoRecibido,
+                        cambio: montoRecibido - totalConDescuento,
+                        tipoPago: 'Efectivo',
+                        cashbackGenerado:
+                            usarCashback ? 0.0 : calcularNuevoCashback(),
+                      );
+
+                      // Actualizar los asientos vendidos
+                      final AsientosController asientosController =
+                          AsientosController();
+                      await asientosController.actualizarAsientosVendidos(
+                        fecha: widget.fecha,
+                        horario: widget.horario,
+                        sala: widget.sala,
+                        nuevosAsientos: widget.asientos,
+                      );
+
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('Pago registrado exitosamente'),
+                          backgroundColor: Colors.green,
+                        ),
+                      );
+
+                      showDialog(
+                        context: context,
+                        barrierDismissible: false,
+                        builder: (context) {
+                          return TicketCompra(
+                            titulo: widget.titulo,
+                            fecha: widget.fecha,
+                            horario: widget.horario,
+                            sala: widget.sala,
+                            boletos: widget.boletos,
+                            asientos: widget.asientos,
+                            total: totalConDescuento,
+                          );
+                        },
+                      );
+                    } catch (e) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text('Error al registrar el pago: $e'),
+                          backgroundColor: Colors.red,
+                        ),
+                      );
+                    }
+                  },
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xFF0665A4),
                     padding: const EdgeInsets.symmetric(
@@ -339,12 +585,12 @@ class _VentanaPagosState extends State<VentanaPagos> {
                             child: Column(
                               children: [
                                 TarjetaPelicula(
-                                  titulo,
-                                  fecha,
-                                  horario,
-                                  sala,
-                                  boletos,
-                                  asientos,
+                                  widget.titulo,
+                                  widget.fecha,
+                                  widget.horario,
+                                  widget.sala,
+                                  widget.boletos,
+                                  widget.asientos,
                                 ),
                                 const SizedBox(height: 20),
                                 SecciondePago(),

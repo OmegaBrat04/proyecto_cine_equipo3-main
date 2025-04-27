@@ -1,47 +1,91 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:proyecto_cine_equipo3/Modelo/ModeloTipoBoleto.dart';
 import 'package:proyecto_cine_equipo3/Vista/Taquilla/SeleccionAsientos.dart';
+import 'package:proyecto_cine_equipo3/Controlador/Taquilla/Proceso.dart';
 
-void main() {
+/*void main() {
   runApp(const SBoletos());
-}
+}*/
 
 class SBoletos extends StatelessWidget {
-  const SBoletos({super.key});
+  final String titulo;
+  final String fecha;
+  final String horario;
+  final String sala;
+  final String poster;
+
+  const SBoletos({
+    super.key,
+    required this.titulo,
+    required this.fecha,
+    required this.horario,
+    required this.sala,
+    required this.poster,
+  });
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-        body: SeleccionBoletos(),
-      );
-    
+      body: SeleccionBoletos(
+        titulo: titulo,
+        fecha: fecha,
+        horario: horario,
+        sala: sala,
+        poster: poster,
+      ),
+    );
   }
 }
 
 class SeleccionBoletos extends StatefulWidget {
-  const SeleccionBoletos({super.key});
+  final String titulo;
+  final String fecha;
+  final String horario;
+  final String sala;
+  final String poster;
+
+  const SeleccionBoletos({
+    super.key,
+    required this.titulo,
+    required this.fecha,
+    required this.horario,
+    required this.sala,
+    required this.poster,
+  });
 
   @override
   _SeleccionBoletosState createState() => _SeleccionBoletosState();
 }
 
 class _SeleccionBoletosState extends State<SeleccionBoletos> {
-  final TextEditingController fechaController = TextEditingController();
-  final String titulo = 'Jurassic Park';
-  final String fecha = '15/07/2025';
-  final String horario = '16:00';
-  final String sala = '1';
+  List<int> cantidades = [];
+  double total = 0.0;
+  TextEditingController totalController =
+      TextEditingController(text: 'Total: \$0.00');
+  final BoletosController boletosController = BoletosController();
+  late String tipoSala;
+
+  @override
+  void initState() {
+    super.initState();
+    tipoSala =
+        int.tryParse(widget.sala) != null && int.parse(widget.sala) % 2 == 0
+            ? '3D'
+            : '2D';
+  }
 
   Widget TarjetaPelicula(
     String titulo,
     String fecha,
     String horario,
     String sala,
+    String poster,
   ) {
     return Card(
       color: Colors.grey[200],
       margin: const EdgeInsets.symmetric(
-        vertical: 10, /*horizontal: 4*/
+        vertical: 10,
       ),
       child: Padding(
         padding: const EdgeInsets.all(8.0),
@@ -53,7 +97,7 @@ class _SeleccionBoletosState extends State<SeleccionBoletos> {
               height: 120,
               decoration: BoxDecoration(
                 image: DecorationImage(
-                  image: Image.asset('images/Poster JWR.jpeg').image,
+                  image: NetworkImage('http://localhost:3000/${widget.poster}'),
                   fit: BoxFit.cover,
                 ),
               ),
@@ -108,102 +152,132 @@ class _SeleccionBoletosState extends State<SeleccionBoletos> {
     );
   }
 
-  Widget SeleccionBoletos() {
-    double total = 0.0;
+  void recalcularTotal(List<TipoBoleto> boletos) {
+    double nuevoTotal = 0.0;
+    for (int i = 0; i < cantidades.length; i++) {
+      nuevoTotal += cantidades[i] * boletos[i].precio;
+    }
+    setState(() {
+      total = nuevoTotal;
+      totalController.text = 'Total: \$${total.toStringAsFixed(2)}';
+    });
+  }
 
-    return SingleChildScrollView(
-      child: Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: Colors.grey[200],
-          borderRadius: BorderRadius.circular(10),
-        ),
-        child: Column(
-          children: [
-            TiposBoletos(
-              'Adulto',
-              100.0,
-            ),
-            const Divider(color: Colors.black54),
-            TiposBoletos(
-              'Niños',
-              70.0,
-            ),
-            const Divider(color: Colors.black54),
-            TiposBoletos(
-              '3ra Edad',
-              50.0,
-            ),
-            const SizedBox(height: 20),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Expanded(
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(5),
-                      border: Border.all(color: Colors.black54),
-                    ),
-                    child: TextField(
-                      readOnly: true,
-                      controller: TextEditingController(
-                          text: 'Total: \$${total.toStringAsFixed(2)}'),
-                      style: const TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.black,
-                      ),
-                      decoration: const InputDecoration(
-                        border: InputBorder.none,
-                      ),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 20),
-                ElevatedButton(
-                  onPressed: () {
-                    // Aquí puedes agregar la lógica para continuar con la compra
-                    // o navegar a otra pantalla.
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => const SAsientos(),
-                      ),
+  Widget SeleccionBoletos() {
+    return FutureBuilder<List<TipoBoleto>>(
+      future: boletosController.obtenerBoletos(widget.fecha, tipoSala),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(child: CircularProgressIndicator());
+        } else if (snapshot.hasError) {
+          return Text('Error: ${snapshot.error}');
+        } else if (!snapshot.hasData || snapshot.data!.isEmpty) {
+          return const Text('No hay boletos disponibles.');
+        } else {
+          final boletos = snapshot.data!;
+          cantidades = List.filled(boletos.length, 0);
+
+          return SingleChildScrollView(
+            child: Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.grey[200],
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Column(
+                children: [
+                  ...List.generate(boletos.length, (index) {
+                    final boleto = boletos[index];
+                    return Column(
+                      children: [
+                        TiposBoletos(
+                            boleto.nombre, boleto.precio, index, boletos),
+                        const Divider(color: Colors.black54),
+                      ],
                     );
-                  },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF0665A4),
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 20, vertical: 15),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(10),
-                    ),
+                  }),
+                  const SizedBox(height: 20),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Expanded(
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 10),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(5),
+                            border: Border.all(color: Colors.black54),
+                          ),
+                          child: TextField(
+                            readOnly: true,
+                            controller: totalController,
+                            style: const TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.black,
+                            ),
+                            decoration: const InputDecoration(
+                              border: InputBorder.none,
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 20),
+                      ElevatedButton(
+                        onPressed: () {
+                          int totalBoletos =
+                              cantidades.fold(0, (sum, item) => sum + item);
+
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => SAsientos(
+                                titulo: widget.titulo,
+                                fecha: widget.fecha,
+                                horario: widget.horario,
+                                sala: widget.sala,
+                                boletos: totalBoletos.toString(),
+                                poster:
+                                    widget.poster,
+                                total: total,
+                              ),
+                            ),
+                          );
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFF0665A4),
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 20, vertical: 15),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                        ),
+                        child: const Text(
+                          'Siguiente',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.white,
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
-                  child: const Text(
-                    'Siguiente',
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.white,
-                    ),
-                  ),
-                ),
-              ],
+                ],
+              ),
             ),
-          ],
-        ),
-      ),
+          );
+        }
+      },
     );
   }
 
   Widget TiposBoletos(
     String tipo,
     double precio,
+    int index,
+    List<TipoBoleto> boletos,
   ) {
-    int cantidad = 0;
-
     return StatefulBuilder(
       builder: (BuildContext context, StateSetter setState) {
         return Row(
@@ -228,16 +302,20 @@ class _SeleccionBoletosState extends State<SeleccionBoletos> {
               children: [
                 IconButton(
                   onPressed: () {
-                    if (cantidad > 0) {
+                    if (cantidades[index] > 0) {
                       setState(() {
-                        cantidad--;
+                        cantidades[index]--;
+                        total = boletosController.calcularTotal(
+                            cantidades, boletos);
+                        totalController.text =
+                            'Total: \$${total.toStringAsFixed(2)}';
                       });
                     }
                   },
                   icon: const Icon(Icons.remove, color: Colors.black),
                 ),
                 Text(
-                  '$cantidad',
+                  '${cantidades[index]}',
                   style: const TextStyle(
                     fontSize: 14,
                     fontWeight: FontWeight.bold,
@@ -247,7 +325,11 @@ class _SeleccionBoletosState extends State<SeleccionBoletos> {
                 IconButton(
                   onPressed: () {
                     setState(() {
-                      cantidad++;
+                      cantidades[index]++;
+                      total =
+                          boletosController.calcularTotal(cantidades, boletos);
+                      totalController.text =
+                          'Total: \$${total.toStringAsFixed(2)}';
                     });
                   },
                   icon: const Icon(Icons.add, color: Colors.black),
@@ -347,10 +429,11 @@ class _SeleccionBoletosState extends State<SeleccionBoletos> {
                             child: Column(
                               children: [
                                 TarjetaPelicula(
-                                  titulo,
-                                  fecha,
-                                  horario,
-                                  sala,
+                                  widget.titulo,
+                                  widget.fecha,
+                                  widget.horario,
+                                  widget.sala,
+                                  widget.poster,
                                 ),
                                 const SizedBox(height: 15),
                                 SeleccionBoletos(),

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:proyecto_cine_equipo3/Vista/Taquilla/Miembros.dart';
 import 'package:proyecto_cine_equipo3/Vista/Taquilla/SeleccionFuncion.dart';
 
 void main() {
@@ -98,7 +99,14 @@ class _MenuTaquillaState extends State<MenuTaquilla> {
                   _buildSidebarButton(
                     icon: Icons.card_membership,
                     label: 'Membresias',
-                    onPressed: () {},
+                    onPressed: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const Miembros(),
+                        ),
+                      );
+                    },
                   ),
                   const Divider(
                     color: Colors.white,

@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:proyecto_cine_equipo3/Vista/Taquilla/SeleccionBoletos.dart';
+import 'package:proyecto_cine_equipo3/Controlador/Taquilla/Proceso.dart';
+import 'package:proyecto_cine_equipo3/Modelo/ModeloFunciones.dart';
 
 class SFunciones extends StatelessWidget {
   const SFunciones({super.key});
@@ -22,11 +24,15 @@ class SeleccionFunciones extends StatefulWidget {
 
 class _SeleccionFuncionesState extends State<SeleccionFunciones> {
   final TextEditingController fechaController = TextEditingController();
-  final String titulo = 'Jurassic Park';
-  final String genero = 'Acción, Aventura';
-  final String clasificacion = 'PG-13';
-  final String duracion = '2h 7m';
+  final FuncionesController funcionesController = FuncionesController();
   DateTime? selectedDate;
+
+  @override
+  void initState() {
+    super.initState();
+    final String fechaHoy = DateFormat('yyyy-MM-dd').format(DateTime.now());
+    fechaController.text = fechaHoy;
+  }
 
   Future<void> seleccionarFecha() async {
     final DateTime? picked = await showDatePicker(
@@ -42,6 +48,14 @@ class _SeleccionFuncionesState extends State<SeleccionFunciones> {
     }
   }
 
+  Future<List<Funcion>> obtenerFunciones() async {
+    if (fechaController.text.isEmpty) {
+      return [];
+    }
+    return await funcionesController
+        .obtenerFuncionesPorFecha(fechaController.text);
+  }
+
   Widget BotonHorario(String texto, VoidCallback onPressed) {
     return ElevatedButton(
       style: ElevatedButton.styleFrom(
@@ -53,14 +67,7 @@ class _SeleccionFuncionesState extends State<SeleccionFunciones> {
         ),
         side: const BorderSide(color: Colors.black, width: 1),
       ),
-      onPressed: () {
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (context) => const SBoletos(),
-          ),
-        );
-      },
+      onPressed: onPressed,
       child: Text(
         texto,
         style: const TextStyle(fontSize: 14),
@@ -68,23 +75,21 @@ class _SeleccionFuncionesState extends State<SeleccionFunciones> {
     );
   }
 
-  Widget TarjetaPelicula(String titulo, String genero, String clasificacion,
-      String duracion, List<String> horarios) {
-    return SingleChildScrollView(
-      child: Card(
-        margin: const EdgeInsets.only(bottom: 10, top: 10, right: 80, left: 10),
+  Widget TarjetaPelicula(Funcion funcion) {
+    return Card(
+      margin: const EdgeInsets.symmetric(vertical: 10, horizontal: 10),
+      child: Padding(
+        padding: const EdgeInsets.all(8.0),
         child: Row(
           children: [
-            Padding(
-              padding: const EdgeInsets.all(8.0),
-              child: Container(
-                width: 100,
-                height: 150,
-                decoration: BoxDecoration(
-                  image: DecorationImage(
-                    image: Image.asset('images/Poster JWR.jpeg').image,
-                    fit: BoxFit.contain,
-                  ),
+            Container(
+              width: 100,
+              height: 150,
+              decoration: BoxDecoration(
+                image: DecorationImage(
+                  image:
+                      NetworkImage('http://localhost:3000/${funcion.poster}'),
+                  fit: BoxFit.cover,
                 ),
               ),
             ),
@@ -93,27 +98,39 @@ class _SeleccionFuncionesState extends State<SeleccionFunciones> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const SizedBox(height: 5),
                   Text(
-                    titulo,
+                    funcion.titulo,
                     style: const TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.black),
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.black,
+                    ),
                   ),
                   const SizedBox(height: 5),
                   Row(
                     children: [
                       Row(
                         children: [
-                          const Icon(Icons.star, color: Colors.amber, size: 16),
+                          const Icon(Icons.category,
+                              size: 16, color: Color(0xffFF6F61)),
                           const SizedBox(width: 5),
                           Text(
-                            'Clasificación: $clasificacion',
+                            'Género: ${funcion.genero}',
                             style: const TextStyle(
-                              fontSize: 14,
-                              color: Colors.black54,
-                            ),
+                                fontSize: 14, color: Colors.black54),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(width: 10),
+                      Row(
+                        children: [
+                          const Icon(Icons.star,
+                              size: 16, color: Color(0xFFf9c74f)),
+                          const SizedBox(width: 5),
+                          Text(
+                            'Clasificación: ${funcion.clasificacion}',
+                            style: const TextStyle(
+                                fontSize: 14, color: Colors.black54),
                           ),
                         ],
                       ),
@@ -121,85 +138,62 @@ class _SeleccionFuncionesState extends State<SeleccionFunciones> {
                       Row(
                         children: [
                           const Icon(Icons.access_time,
-                              color: Colors.blue, size: 16),
+                              size: 16, color: Color(0xff4A90E2)),
                           const SizedBox(width: 5),
                           Text(
-                            'Duración: $duracion',
+                            'Duración: ${funcion.duracion}',
                             style: const TextStyle(
-                              fontSize: 14,
-                              color: Colors.black54,
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(width: 10),
-                      Row(
-                        children: [
-                          const Icon(Icons.category,
-                              color: Colors.green, size: 16),
-                          const SizedBox(width: 5),
-                          Text(
-                            'Géneros: $genero',
-                            style: const TextStyle(
-                              fontSize: 14,
-                              color: Colors.black54,
-                            ),
+                                fontSize: 14, color: Colors.black54),
                           ),
                         ],
                       ),
                     ],
                   ),
                   const SizedBox(height: 10),
-                  Padding(
-                    padding: const EdgeInsets.only(right: 50),
-                    child: Container(
-                      height: 1,
-                      color: Colors.black54,
-                    ),
-                  ),
-                  const SizedBox(height: 5),
-                  const Text('ESPAÑOL',
-                      style: TextStyle(
-                        fontSize: 14,
-                        color: Colors.black54,
-                      )),
-                  const SizedBox(height: 5),
-                  Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
-                    children: horarios
-                        .map((horario) => BotonHorario(
-                              horario,
-                              () {},
-                            ))
-                        .toList(),
-                  ),
-                  const SizedBox(height: 10),
-                  Padding(
-                    padding: const EdgeInsets.only(right: 50),
-                    child: Container(
-                      height: 1,
-                      color: Colors.black54,
-                    ),
-                  ),
-                  const SizedBox(height: 5),
-                  const Text('INGLES',
-                      style: TextStyle(
-                        fontSize: 14,
-                        color: Colors.black54,
-                      )),
-                  const SizedBox(height: 5),
-                  Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
-                    children: horarios
-                        .map((horario) => BotonHorario(
-                              horario,
-                              () {},
-                            ))
-                        .toList(),
-                  ),
-                  const SizedBox(height: 5),
+                  ...funcion.funciones.entries.map((entry) {
+                    final idioma = entry.key;
+                    final horarios = entry.value;
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          idioma.toUpperCase(),
+                          style: const TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.black,
+                          ),
+                        ),
+                        Wrap(
+                          spacing: 8,
+                          runSpacing: 8,
+                          children: horarios.map((horarioData) {
+                            final horario = horarioData['horario']!;
+                            final tipoSala = horarioData['tipo_sala']!;
+
+                            return BotonHorario(
+                              '$horario - $tipoSala',
+                              () {
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (context) => SBoletos(
+                                      titulo: funcion.titulo,
+                                      fecha: fechaController.text,
+                                      horario: horario,
+                                      sala: horarioData['sala']!,
+                                      poster: funcion.poster,
+                                    ),
+                                  ),
+                                );
+                              },
+                            );
+                          }).toList(),
+                        ),
+                        const SizedBox(height: 10),
+                      ],
+                    );
+                  }).toList(),
                 ],
               ),
             ),
@@ -224,140 +218,112 @@ class _SeleccionFuncionesState extends State<SeleccionFunciones> {
                 colors: [Color(0xFF022044), Color(0xFF01021E)],
               ),
             ),
-            child: SingleChildScrollView(
-              child: Column(
-                children: [
-                  Padding(
-                    padding: const EdgeInsets.all(16),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Row(
-                          children: [
-                            IconButton(
-                              icon: const Icon(Icons.arrow_back,
-                                  color: Colors.white),
-                              onPressed: () {
-                                Navigator.pop(context);
-                              },
-                            ),
-                            const SizedBox(width: 10),
-                            const Text(
-                              'Atras',
-                              style: TextStyle(
-                                color: Colors.white,
-                                fontSize: 20,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                          ],
-                        ),
-                        Row(
-                          children: [
-                            const Text(
-                              'Fecha: ',
-                              style: TextStyle(
-                                color: Colors.white,
-                                fontSize: 20,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                            const SizedBox(width: 15),
-                            Container(
-                              width: 200,
-                              height: 40,
-                              decoration: BoxDecoration(
-                                color: Colors.white,
-                                borderRadius: BorderRadius.circular(5),
-                              ),
-                              child: TextField(
-                                controller: fechaController,
-                                readOnly: true,
-                                onTap: seleccionarFecha,
-                                decoration: const InputDecoration(
-                                  hintText: 'Seleccione una fecha',
-                                  hintStyle: TextStyle(
-                                      color: Colors.grey, fontSize: 14),
-                                  prefixIcon: Icon(Icons.date_range),
-                                  border: InputBorder.none,
-                                  contentPadding: EdgeInsets.only(
-                                      top: 8, left: 10, bottom: 10),
-                                ),
-                              ),
-                            ),
-                            const SizedBox(width: 50),
-                            CircleAvatar(
-                              radius: 30,
-                              backgroundColor: const Color(0xFF0665A4),
-                              child: ClipRRect(
-                                borderRadius: BorderRadius.circular(100),
-                                child: Image.asset(
-                                  'images/PICNITO LOGO.jpeg',
-                                  fit: BoxFit.contain,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
-                  ),
-                  Center(
-                    child: Stack(
-                      children: [
-                        Container(
-                          width: 900,
-                          height: 550,
-                          padding: const EdgeInsets.all(16),
-                          decoration: BoxDecoration(
-                            color: Colors.white.withOpacity(0.2),
-                            borderRadius: BorderRadius.circular(20),
-                            boxShadow: const [
-                              BoxShadow(
-                                color: Colors.black26,
-                                blurRadius: 10,
-                                offset: Offset(0, 5),
-                              ),
-                            ],
+            child: Column(
+              children: [
+                Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Row(
+                        children: [
+                          IconButton(
+                            icon: const Icon(Icons.arrow_back,
+                                color: Colors.white),
+                            onPressed: () {
+                              Navigator.pop(context);
+                            },
                           ),
-                          child: SingleChildScrollView(
-                            child: Column(
-                              children: [
-                                const Text(
-                                  textAlign: TextAlign.center,
-                                  'Seleccione una función',
-                                  style: TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 20,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
-                                const SizedBox(height: 10),
-                                TarjetaPelicula(
-                                  titulo,
-                                  genero,
-                                  clasificacion,
-                                  duracion,
-                                  ['10:00 AM', '1:00 PM', '4:00 PM'],
-                                ),
-                                TarjetaPelicula(
-                                  titulo,
-                                  genero,
-                                  clasificacion,
-                                  duracion,
-                                  ['11:00 AM', '2:00 PM', '5:00 PM'],
-                                ),
-                              ],
+                          const SizedBox(width: 10),
+                          const Text(
+                            'Atrás',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 20,
+                              fontWeight: FontWeight.bold,
                             ),
                           ),
+                        ],
+                      ),
+                      const Text(
+                        'Seleccionar Función',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 20,
+                          fontWeight: FontWeight.bold,
                         ),
-                      ],
-                    ),
+                      ),
+                      Row(
+                        children: [
+                          const Text(
+                            'Fecha: ',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 20,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          const SizedBox(width: 15),
+                          Container(
+                            width: 200,
+                            height: 40,
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(5),
+                            ),
+                            child: TextField(
+                              controller: fechaController,
+                              readOnly: true,
+                              onTap: seleccionarFecha,
+                              decoration: const InputDecoration(
+                                hintText: 'Seleccione una fecha',
+                                hintStyle:
+                                    TextStyle(color: Colors.grey, fontSize: 14),
+                                prefixIcon: Icon(Icons.date_range),
+                                border: InputBorder.none,
+                                contentPadding: EdgeInsets.only(
+                                    top: 8, left: 10, bottom: 10),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
                   ),
-                ],
-              ),
+                ),
+                Expanded(
+                  child: FutureBuilder<List<Funcion>>(
+                    future: obtenerFunciones(),
+                    builder: (context, snapshot) {
+                      if (snapshot.connectionState == ConnectionState.waiting) {
+                        return const Center(child: CircularProgressIndicator());
+                      } else if (snapshot.hasError) {
+                        return Center(
+                          child: Text(
+                            'Error: ${snapshot.error}',
+                            style: const TextStyle(color: Colors.white),
+                          ),
+                        );
+                      } else if (!snapshot.hasData || snapshot.data!.isEmpty) {
+                        return const Center(
+                          child: Text(
+                            'No hay funciones disponibles para la fecha seleccionada.',
+                            style: TextStyle(color: Colors.white),
+                          ),
+                        );
+                      } else {
+                        return ListView(
+                          children: snapshot.data!
+                              .map((funcion) => TarjetaPelicula(funcion))
+                              .toList(),
+                        );
+                      }
+                    },
+                  ),
+                ),
+              ],
             ),
-          )
+          ),
         ],
       ),
     );
