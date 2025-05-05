@@ -7,7 +7,8 @@ class MiembrosController {
 
   // 🚀 Función para obtener todos los miembros
   Future<List<dynamic>> obtenerMiembros() async {
-    final response = await http.get(Uri.parse('$baseUrl/miembros'));
+    final response =
+        await http.get(Uri.parse('$baseUrl/api/taquilla/miembros'));
 
     if (response.statusCode == 200) {
       return jsonDecode(response.body);
@@ -57,7 +58,7 @@ class MiembrosController {
 
     try {
       final response = await http.post(
-        Uri.parse('$baseUrl/addMiembro'),
+        Uri.parse('$baseUrl/api/taquilla/addMiembro'),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({
           'nombre': nombre.trim(),
@@ -96,55 +97,53 @@ class MiembrosController {
   }
 
   Future<void> eliminarMiembro(int id) async {
-  final response = await http.delete(
-    Uri.parse('$baseUrl/miembros/$id'),
-  );
-
-  if (response.statusCode != 200) {
-    throw Exception('Error al eliminar miembro');
-  }
-}
-
-Future<String> actualizarMiembro({
-  required BuildContext context,
-  required int id,
-  required String nombre,
-  required String apellido,
-  required String telefono,
-  required String direccion,
-  required String ine,
-  required String tipoMembresia,
-}) async {
-  try {
-    final response = await http.put(
-      Uri.parse('$baseUrl/miembros/$id'),
-      headers: {'Content-Type': 'application/json'},
-      body: jsonEncode({
-        'nombre': nombre.trim(),
-        'apellido': apellido.trim(),
-        'telefono': telefono.trim(),
-        'direccion': direccion.trim(),
-        'ine': ine.trim(),
-        'tipo_membresia': tipoMembresia,
-      }),
+    final response = await http.delete(
+      Uri.parse('$baseUrl/api/taquilla/miembros/$id'),
     );
 
-    if (response.statusCode == 200) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Miembro actualizado exitosamente'),
-          backgroundColor: Colors.green,
-        ),
-      );
-      return 'OK';
-    } else {
-      throw Exception('Error al actualizar miembro');
+    if (response.statusCode != 200) {
+      throw Exception('Error al eliminar miembro');
     }
-  } catch (e) {
-    mostrarError(context, 'Error: $e');
-    return 'ERROR';
   }
-}
 
+  Future<String> actualizarMiembro({
+    required BuildContext context,
+    required int id,
+    required String nombre,
+    required String apellido,
+    required String telefono,
+    required String direccion,
+    required String ine,
+    required String tipoMembresia,
+  }) async {
+    try {
+      final response = await http.put(
+        Uri.parse('$baseUrl/api/taquilla/miembros/$id'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'nombre': nombre.trim(),
+          'apellido': apellido.trim(),
+          'telefono': telefono.trim(),
+          'direccion': direccion.trim(),
+          'ine': ine.trim(),
+          'tipo_membresia': tipoMembresia,
+        }),
+      );
 
+      if (response.statusCode == 200) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Miembro actualizado exitosamente'),
+            backgroundColor: Colors.green,
+          ),
+        );
+        return 'OK';
+      } else {
+        throw Exception('Error al actualizar miembro');
+      }
+    } catch (e) {
+      mostrarError(context, 'Error: $e');
+      return 'ERROR';
+    }
+  }
 }

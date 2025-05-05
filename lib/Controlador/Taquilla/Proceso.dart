@@ -8,7 +8,7 @@ class FuncionesController {
 
   Future<List<Funcion>> obtenerFuncionesPorFecha(String fecha) async {
     final response =
-        await http.get(Uri.parse('$baseUrl/funciones?fecha=$fecha'));
+        await http.get(Uri.parse('$baseUrl/api/taquilla/funciones?fecha=$fecha'));
 
     if (response.statusCode == 200) {
       List<dynamic> data = jsonDecode(response.body);
@@ -24,7 +24,7 @@ class BoletosController {
 
   Future<List<TipoBoleto>> obtenerBoletos(String fecha, String tipoSala) async {
     final response = await http.get(
-        Uri.parse('$baseUrl/tiposboletos?fecha=$fecha&tipoSala=$tipoSala'));
+        Uri.parse('$baseUrl/api/taquilla/tiposboletos?fecha=$fecha&tipoSala=$tipoSala'));
 
     if (response.statusCode == 200) {
       List<dynamic> data = jsonDecode(response.body);
@@ -50,7 +50,7 @@ class PagoController {
   Future<Map<String, dynamic>?> buscarMiembroPorTelefono(
       String telefono) async {
     final response =
-        await http.get(Uri.parse('$baseUrl/miembroTelefono/$telefono'));
+        await http.get(Uri.parse('$baseUrl/api/taquilla/miembroTelefono/$telefono'));
 
     if (response.statusCode == 200) {
       return jsonDecode(response.body);
@@ -89,7 +89,7 @@ class PagoController {
     required String tipoPago,
     required double cashbackGenerado,
   }) async {
-    final url = Uri.parse('$baseUrl/pago');
+    final url = Uri.parse('$baseUrl/api/taquilla/pago');
 
     final response = await http.post(
       url,
@@ -122,7 +122,7 @@ class AsientosController {
     required String sala,
   }) async {
     final response = await http.get(Uri.parse(
-      '$baseUrl/asientosOcupados?fecha=$fecha&horario=$horario&sala=$sala',
+      '$baseUrl/api/taquilla/asientosOcupados?fecha=$fecha&horario=$horario&sala=$sala',
     ));
 
     if (response.statusCode == 200) {
@@ -142,7 +142,7 @@ class AsientosController {
     required String nuevosAsientos,
   }) async {
     final response = await http.put(
-      Uri.parse('http://localhost:3000/actualizarAsientosVendidos'),
+      Uri.parse('http://localhost:3000/api/taquilla/actualizarAsientosVendidos'),
       headers: {'Content-Type': 'application/json'},
       body: jsonEncode({
         'fecha': fecha,

@@ -18,11 +18,16 @@ const dbConfig = {
 
 async function connectDB() {
     try {
-        await sql.connect(dbConfig);
-        console.log("✅ Conexión exitosa a SQL Server");
+        if (!sql.pool) {
+            await sql.connect(dbConfig);
+            console.log("✅ Conexión nueva a SQL Server establecida");
+        } else {
+            console.log("⚠️ Ya hay una conexión activa");
+        }
     } catch (error) {
-        console.error("❌ Error de conexión:", error);
+        console.error("❌ Error al conectar a SQL Server:", error);
     }
 }
+
 
 module.exports = { sql, connectDB };
