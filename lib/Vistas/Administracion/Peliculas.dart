@@ -33,8 +33,7 @@ class _PeliculasState extends State<Peliculas> {
   @override
   void initState() {
     super.initState();
-    fetchMovies(); // Llama a la función para cargar las películas al iniciar
-    cargarPeliculas();
+    fetchMovies();
   }
 
   void eliminarPelicula(int id) async {
@@ -52,9 +51,8 @@ class _PeliculasState extends State<Peliculas> {
         );
 
         setState(() {
-          peliculas.removeWhere((pelicula) => pelicula['id'] == id);
-          peliculasFiltradas =
-              List.from(peliculas); // Actualizar la lista filtrada también
+          peliculas.removeWhere((pelicula) => pelicula['ID_Pelicula'] == id);
+          peliculasFiltradas = List.from(peliculas);
         });
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -85,13 +83,13 @@ class _PeliculasState extends State<Peliculas> {
           actions: [
             TextButton(
               onPressed: () {
-                Navigator.of(context).pop(); // Cerrar el diálogo sin hacer nada
+                Navigator.of(context).pop();
               },
               child: const Text("Cancelar"),
             ),
             TextButton(
               onPressed: () {
-                Navigator.of(context).pop(); // Cerrar el diálogo
+                Navigator.of(context).pop();
                 eliminarPelicula(peliculaId);
               },
               child:
@@ -131,14 +129,14 @@ class _PeliculasState extends State<Peliculas> {
 
   Future<void> fetchMovies() async {
     final url = Uri.parse('http://localhost:3000/api/admin/getMovies');
-
     try {
       final response = await http.get(url);
+      print(json.decode(response.body));
 
       if (response.statusCode == 200) {
         setState(() {
           peliculas = json.decode(response.body);
-          peliculasFiltradas = peliculas; // Inicializa la lista filtrada
+          peliculasFiltradas = peliculas;
         });
       } else {
         print("Error al cargar las películas: ${response.statusCode}");
@@ -164,15 +162,18 @@ class _PeliculasState extends State<Peliculas> {
               width: 100,
               height: 150,
               decoration: BoxDecoration(
-                image: pelicula['poster'] != null
+                image: (pelicula['poster'] != null &&
+                        pelicula['poster'].toString().isNotEmpty)
                     ? DecorationImage(
                         image: NetworkImage(
-                            pelicula['poster']), // Cargar imagen desde URL
+                          pelicula['poster'].toString().startsWith('http')
+                              ? pelicula['poster']
+                              : 'http://localhost:3000${pelicula['poster']}',
+                        ),
                         fit: BoxFit.cover,
                       )
                     : const DecorationImage(
-                        image: AssetImage(
-                            'images/Poster JWR.jpeg'), // Imagen por defecto
+                        image: AssetImage('images/placeholder.png'),
                         fit: BoxFit.cover,
                       ),
               ),
@@ -197,7 +198,7 @@ class _PeliculasState extends State<Peliculas> {
                 ),
                 const SizedBox(height: 5),
                 Text(
-                  'Idiomas: ${pelicula['idiomas'] ?? 'Desconocido'}',
+                  'Idioma: ${pelicula['idioma'] ?? 'Desconocido'}',
                   style: const TextStyle(fontSize: 14),
                 ),
                 const SizedBox(height: 10),
@@ -225,7 +226,7 @@ class _PeliculasState extends State<Peliculas> {
                         ),
                       ),
                       onPressed: () {
-                        _confirmarEliminacion(context, pelicula['id']);
+                        _confirmarEliminacion(context, pelicula['ID_Pelicula']);
                       },
                       child: const Text('Eliminar',
                           style: TextStyle(color: Colors.black)),

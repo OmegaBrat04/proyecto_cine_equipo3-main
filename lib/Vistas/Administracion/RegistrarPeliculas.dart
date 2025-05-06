@@ -3,6 +3,7 @@ import 'package:http/http.dart' as http;
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
+import 'package:proyecto_cine_equipo3/Modelo/ModeloPeliculas.dart';
 import 'package:proyecto_cine_equipo3/Vistas/Administracion/Menu.dart';
 import 'package:proyecto_cine_equipo3/Vistas/Administracion/Peliculas.dart';
 import 'dart:io';
@@ -19,7 +20,7 @@ class RPeliculas extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-        body: ListaPeliculas(),
+      body: ListaPeliculas(),
     );
   }
 }
@@ -65,20 +66,28 @@ class _ListaPeliculasState extends State<ListaPeliculas> {
   }
 
   Future<String?> subirImagen(File imagen) async {
-    var request = http.MultipartRequest(
-      'POST',
-      Uri.parse('http://localhost:3000/api/admin/uploadImage'),
-    );
+    try {
+      var request = http.MultipartRequest(
+        'POST',
+        Uri.parse('http://localhost:3000/api/admin/uploadImage'),
+      );
 
-    request.files.add(await http.MultipartFile.fromPath('poster', imagen.path));
-    var response = await request.send();
+      request.files.add(
+        await http.MultipartFile.fromPath('poster', imagen.path),
+      );
 
-    if (response.statusCode == 200) {
-      var responseData = await response.stream.bytesToString();
-      var jsonData = json.decode(responseData);
-      return jsonData['imageUrl']; // ✅ Devuelve la URL de la imagen
-    } else {
-      print("❌ Error al subir la imagen: ${response.statusCode}");
+      var response = await request.send();
+
+      if (response.statusCode == 200) {
+        final res = await response.stream.bytesToString();
+        final data = json.decode(res);
+        return data['imageUrl'];
+      } else {
+        print('Error al subir imagen: ${response.statusCode}');
+        return null;
+      }
+    } catch (e) {
+      print('Excepción al subir imagen: $e');
       return null;
     }
   }
@@ -87,85 +96,93 @@ class _ListaPeliculasState extends State<ListaPeliculas> {
     final titulo = tituloController.text.trim();
     final director = directorController.text.trim();
     final duracion = convertirDuracion(duracionController.text.trim());
-    final idiomas = idiomaController.text.trim();
-    final subtitulosBool = subtitulos == "Si" ? "1" : "0";
+    final idiomaTexto = idiomaController.text.trim();
     final genero = generoController.text.trim();
     final clasificacion = dropdownValue;
     final sinopsis = sinopsisController.text.trim();
+    final subtitulosBool = subtitulos == "Si" ? "1" : "0";
 
-    if ([titulo, director, duracion, idiomas, genero, clasificacion, sinopsis]
-        .any((element) => element.isEmpty)) {
+    // Validación de campos
+    if ([
+      titulo,
+      director,
+      duracion,
+      idiomaTexto,
+      genero,
+      clasificacion,
+      sinopsis
+    ].any((element) => element.isEmpty)) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-            content: Text("Todos los campos son obligatorios"),
-            backgroundColor: Colors.red),
+          content: Text("Todos los campos son obligatorios"),
+          backgroundColor: Colors.red,
+        ),
       );
       return;
     }
 
-    // 🔥 SUBIR LA IMAGEN ANTES DE GUARDAR
+    // Subir imagen
     String? posterUrl;
     if (_imagen != null) {
-      posterUrl = await subirImagen(_imagen!); // ✅ Subimos la imagen
+      posterUrl = await subirImagen(_imagen!);
       if (posterUrl == null) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-              content: Text("Error al subir la imagen"),
-              backgroundColor: Colors.red),
+            content: Text("Error al subir la imagen"),
+            backgroundColor: Colors.red,
+          ),
         );
         return;
       }
     }
 
-    final Map<String, String> movieData = {
-      'titulo': titulo,
-      'director': director,
-      'duracion': duracion,
-      'idiomas': idiomas,
-      'subtitulos': subtitulosBool,
-      'genero': genero,
-      'clasificacion': clasificacion,
-      'sinopsis': sinopsis,
-      'poster': posterUrl ?? "", // ✅ Guardamos la URL en la BD
-    };
+    // Crear modelo y enviar
+    final pelicula = PeliculaModel(
+      titulo: titulo,
+      director: director,
+      duracion: duracion,
+      idioma: idiomaTexto,
+      genero: genero,
+      clasificacion: clasificacion,
+    );
+
+    final body = pelicula.toJson(sinopsis, subtitulosBool, posterUrl);
 
     try {
       final response = await http.post(
         Uri.parse('http://localhost:3000/api/admin/addMovie'),
         headers: {"Content-Type": "application/json"},
-        body: json.encode(movieData),
+        body: json.encode(body),
       );
 
       if (response.statusCode == 201) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-              content: Text("✅ Película guardada con éxito"),
-              backgroundColor: Colors.green),
+            content: Text("✅ Película guardada con éxito"),
+            backgroundColor: Colors.green,
+          ),
         );
-
-        await Future.delayed(
-            const Duration(seconds: 2)); // ✅ Espera para que se vea el mensaje
-
+        await Future.delayed(const Duration(seconds: 2));
         if (mounted) {
           Navigator.pushReplacement(
             context,
-            MaterialPageRoute(
-                builder: (context) =>
-                    const Peliculas()), // ✅ Redirige a Peliculas.dart
+            MaterialPageRoute(builder: (context) => const Peliculas()),
           );
         }
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-              content: Text("❌ Error al guardar película: ${response.body}"),
-              backgroundColor: Colors.red),
+            content: Text("❌ Error al guardar película: ${response.body}"),
+            backgroundColor: Colors.red,
+          ),
         );
       }
     } catch (error) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-            content: Text("❌ Error de conexión: $error"),
-            backgroundColor: Colors.red),
+          content: Text("❌ Error de conexión: $error"),
+          backgroundColor: Colors.red,
+        ),
       );
     }
   }

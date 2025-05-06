@@ -1,5 +1,6 @@
 class PeliculaModel {
   final String titulo;
+  final String director;
   final String duracion;
   final String idioma;
   final String genero;
@@ -7,6 +8,7 @@ class PeliculaModel {
 
   PeliculaModel({
     required this.titulo,
+    required this.director,
     required this.duracion,
     required this.idioma,
     required this.genero,
@@ -15,11 +17,27 @@ class PeliculaModel {
 
   factory PeliculaModel.fromJson(Map<String, dynamic> json) {
     return PeliculaModel(
-      titulo: json['Titulo'],
-      duracion: json['Duracion'].toString().substring(11, 19),
-      idioma: json['Idioma'],
-      genero: json['Genero'],
-      clasificacion: json['Clasificacion'],
+      titulo: json['titulo'] ?? '',
+      director: json['director'] ?? '',
+      duracion: json['duracion'] ?? '',
+      idioma: json['idioma'] ?? '',
+      genero: json['genero'] ?? '',
+      clasificacion: json['clasificacion'] ?? '',
     );
+  }
+
+  Map<String, dynamic> toJson(
+      String sinopsis, String subtitulos, String? poster) {
+    return {
+      'titulo': titulo,
+      'director': director,
+      'duracion': duracion,
+      'idioma': idioma,
+      'genero': genero,
+      'clasificacion': clasificacion,
+      'sinopsis': sinopsis,
+      'subtitulos': subtitulos,
+      'poster': poster ?? "",
+    };
   }
 }

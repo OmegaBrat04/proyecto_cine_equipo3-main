@@ -208,44 +208,43 @@ router.put('/updateUser/:id', async (req, res) => {
 
 // ✅ Agregar una película
 router.post('/addMovie', async (req, res) => {
-  let { titulo, director, duracion, idioma, subtitulos, genero, clasificacion, sinopsis, poster } = req.body;
-
-  console.log("📥 Datos recibidos:", { titulo, director, duracion, idioma, genero, clasificacion, sinopsis });
+  let {
+    titulo,
+    director,
+    duracion,
+    idioma,
+    subtitulos,
+    genero,
+    clasificacion,
+    sinopsis,
+    poster
+  } = req.body;
 
   if (!titulo || !director || !duracion || !idioma || !genero || !clasificacion || !sinopsis) {
     return res.status(400).json({ message: "Todos los campos son obligatorios." });
   }
-  console.log("⏳ Duración antes de validación:", duracion);
-
-  if (!duracion.trim()) {
-    console.log("⛔ Error: Duración vacía");
-    return res.status(400).json({ message: "Duración no puede estar vacía." });
-  }
-
-  const duracionValida = /^([01]?\d|2[0-3]):[0-5]\d:[0-5]\d$/.test(duracion);
-  if (!duracionValida) {
-    console.log("⛔ Error: Duración con formato incorrecto →", duracion);
-    return res.status(400).json({ message: "Formato de duración inválido. Usa HH:mm:ss" });
-  }
 
   try {
-    console.log("✅ Insertando duración en SQL:", duracion);
-
     const request = new sql.Request();
+
+    // Convertir imagen a binario
+
+
     request.input('titulo', sql.NVarChar, titulo);
     request.input('director', sql.NVarChar, director);
-    request.input('duracion', sql.NVarChar, duracion); // ✅ Enviar como string
+    request.input('duracion', sql.NVarChar, duracion);
     request.input('idioma', sql.NVarChar, idioma);
     request.input('subtitulos', sql.Bit, subtitulos === "Si" ? 1 : 0);
     request.input('genero', sql.NVarChar, genero);
     request.input('clasificacion', sql.NVarChar, clasificacion);
-    request.input('sinopsis', sql.NVarChar, sinopsis);
-    request.input('poster', sql.NVarChar, poster || null);
+    request.input('sinopsis', sql.Text, sinopsis);
+    request.input('poster', sql.NVarChar, poster);
+
 
     await request.query(`
-          INSERT INTO Pelicula (titulo, director, duracion, idioma, subtitulos, genero, clasificacion, sinopsis, poster)
-          VALUES (@titulo, @director, @duracion, @idioma, @subtitulos, @genero, @clasificacion, @sinopsis, @poster)
-      `);
+      INSERT INTO Pelicula (titulo, director, duracion, idioma, subtitulos, genero, clasificacion, sinopsis, poster)
+      VALUES (@titulo, @director, @duracion, @idioma, @subtitulos, @genero, @clasificacion, @sinopsis, @poster)
+    `);
 
     console.log("✅ Película registrada con éxito:", titulo);
     res.status(201).json({ message: "Película registrada con éxito" });
@@ -254,19 +253,33 @@ router.post('/addMovie', async (req, res) => {
     res.status(500).json({ message: "Error en el servidor" });
   }
 });
+
 // ✅ Obtener todas las películas
 router.get('/getMovies', async (req, res) => {
   try {
     const request = new sql.Request();
     const result = await request.query('SELECT * FROM Pelicula ORDER BY ID_Pelicula DESC');
 
+    const mapped = result.recordset.map(p => ({
+      id: p.ID_Pelicula,
+      titulo: p.Titulo,
+      director: p.Director,
+      duracion: p.Duracion,
+      idioma: p.Idioma,
+      subtitulos: p.Subtitulos,
+      genero: p.Genero,
+      clasificacion: p.Clasificacion,
+      sinopsis: p.Sinopsis,
+      poster: p.Poster
+    }));
 
-    res.status(200).json(result.recordset);
+    res.status(200).json(mapped);
   } catch (error) {
     console.error("❌ Error al obtener películas:", error);
     res.status(500).json({ message: error.message });
   }
 });
+
 // ✅ Borrar una película por ID
 router.delete('/deleteMovie/:id', async (req, res) => {
   try {
