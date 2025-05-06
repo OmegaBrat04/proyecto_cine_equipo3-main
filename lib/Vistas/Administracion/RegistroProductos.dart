@@ -16,10 +16,12 @@ class Registroproductos extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
+    return const MaterialApp(
+      debugShowCheckedModeBanner: false,
+      home: Scaffold(
         body: formulario(),
-      );
-    
+      ),
+    );
   }
 }
 
@@ -199,6 +201,46 @@ class _formularioState extends State<formulario> {
     "Palomitas de Queso",
     "Palomitas de Caramelo"
   ];
+
+  Future<void> _guardarProducto() async {
+    // Arma el JSON con los valores de los campos
+    final Map<String, dynamic> data = {
+      'nombre': nombreController.text,
+      'tamano': dropdownValue3,
+      'porcionCantidad': double.tryParse(cPorcioncontroller.text) ?? 0.0,
+      'porcionUnidad': dropdownValue2,
+      'stock': int.tryParse(stockController.text) ?? 0,
+      'precio': double.tryParse(precioUController.text) ?? 0.0,
+      'imagen': _imagen?.path ?? '',
+    };
+
+    final uri = Uri.parse('http://localhost:3000/addProducto');
+    try {
+      final resp = await http.post(
+        uri,
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode(data),
+      );
+      if (resp.statusCode == 201) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('✅ Producto guardado')),
+        );
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (context) => Menu()),
+        ); // o lo que quieras hacer luego
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error: ${resp.statusCode}')),
+        );
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Exception: $e')),
+      );
+    }
+  }
+
   List<String> _consumiblesSeleccionados = [];
   List<String> _intermediosSeleccionados = [];
   List<dynamic> intermedios = [];
@@ -519,7 +561,13 @@ class _formularioState extends State<formulario> {
                             children: [
                               IconButton(
                                 onPressed: () {
-                                  Navigator.pop(context);
+                                  Navigator.pushReplacement(
+                                    context,
+                                    MaterialPageRoute(
+                                        builder: (context) => const Menu(
+                                           /* nombre: 'NombreX',
+                                            apellidos: 'ApellidoX'*/)),
+                                  );
                                 },
                                 icon: const Icon(Icons.arrow_back,
                                     color: Colors.white, size: 30),
@@ -697,13 +745,12 @@ class _formularioState extends State<formulario> {
                       Align(
                         alignment: Alignment.centerRight,
                         child: ElevatedButton(
-                          onPressed: () {
-                            // guardar acción
-                          },
+                          onPressed: _guardarProducto, // ← aquí
                           style: ElevatedButton.styleFrom(
                             backgroundColor: const Color(0xff14AE5C),
                             shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(5)),
+                              borderRadius: BorderRadius.circular(5),
+                            ),
                             fixedSize: const Size(200, 40),
                           ),
                           child: const Text(

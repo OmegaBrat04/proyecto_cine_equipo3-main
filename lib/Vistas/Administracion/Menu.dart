@@ -9,6 +9,7 @@ import 'package:proyecto_cine_equipo3/Vistas/Administracion/ListaCombos.dart';
 import 'package:proyecto_cine_equipo3/Vistas/Administracion/ListaIntermedio.dart';
 import 'package:proyecto_cine_equipo3/Vistas/Administracion/ListaProductos.dart';
 import 'package:proyecto_cine_equipo3/Vistas/Administracion/Proveedores.dart';
+import 'package:proyecto_cine_equipo3/Vistas/Administracion/Recetas.dart';
 import 'package:proyecto_cine_equipo3/Vistas/Administracion/Usuarios.dart';
 
 class Menu extends StatefulWidget {
@@ -205,12 +206,12 @@ class _MenuState extends State<Menu> {
                                     icon: Icons.receipt_long_sharp,
                                     label: 'Recetas',
                                     onPressed: () {
-                                      /* Navigator.push(
+                                      Navigator.push(
                                         context,
                                         MaterialPageRoute(
                                             builder: (context) =>
-                                                Registrointermedios()),
-                                      );*/
+                                                const Recetas()),
+                                      );
                                     },
                                   ),
                                   _buildSubmenuButton(

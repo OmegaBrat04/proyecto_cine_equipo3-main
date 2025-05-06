@@ -1,15 +1,10 @@
-import 'dart:io';
-
 import 'package:flutter/material.dart';
-import 'package:image_picker/image_picker.dart';
-import 'package:proyecto_cine_equipo3/Vistas/Services/Multiseleccion.dart';
-import 'package:proyecto_cine_equipo3/Vistas/Services/Seleccion.dart';
+import 'package:proyecto_cine_equipo3/Vistas/Administracion/Menu.dart';
+import 'package:http/http.dart' as http;
+import 'dart:convert';
 
 void main() {
-  runApp(const MaterialApp(
-    debugShowCheckedModeBanner: false,
-    home: Recetas(),
-  ));
+  runApp(const Recetas());
 }
 
 class Recetas extends StatelessWidget {
@@ -18,66 +13,77 @@ class Recetas extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: formularioRecetas(),
+      body: Ventana(),
     );
   }
 }
 
-class formularioRecetas extends StatefulWidget {
-  const formularioRecetas({super.key});
+class Ventana extends StatefulWidget {
+  const Ventana({super.key});
 
   @override
-  _formularioRecetasState createState() => _formularioRecetasState();
+  State<Ventana> createState() => _VentanaState();
 }
 
-class _formularioRecetasState extends State<formularioRecetas> {
-  final consumiblesController = TextEditingController();
-  final nombreController = TextEditingController();
-  final stockController = TextEditingController();
-  final costoController = TextEditingController();
-  final cConsumiblesController = TextEditingController();
-  File? _imagen;
-  String dropdownValue = 'U';
+class Consumible {
+  final int id;
+  final String nombre;
+  final String unidad;
 
-  List<String> _consumibles = [
-    "Maiz Palomero",
-    "Mantequilla",
-    "Queso Amarillo"
-  ];
-  List<String> _consumiblesSeleccionados = [];
+  Consumible({required this.id, required this.nombre, required this.unidad});
 
-  Future<void> _seleccionarImagen() async {
-    final imgSeleccionada =
-        await ImagePicker().pickImage(source: ImageSource.gallery);
+  factory Consumible.fromJson(Map<String, dynamic> json) {
+    return Consumible(
+      id: json['id'] ?? -1,
+      nombre: json['nombre'] ?? 'Sin Nombre',
+      unidad: json['unidad'] ?? 'Sin Unidad',
+    );
+  }
+}
 
-    setState(() {
-      if (imgSeleccionada != null) {
-        _imagen = File(imgSeleccionada.path);
-      } else {
-        Exception('No image selected.');
-      }
-    });
+class ConsumibleSeleccionado {
+  final int id;
+  final String nombre;
+  final String unidad;
+  double cantidad;
+
+  ConsumibleSeleccionado({
+    required this.id,
+    required this.nombre,
+    required this.unidad,
+    this.cantidad = 0.0,
+  });
+}
+
+class _VentanaState extends State<Ventana> {
+  List<ConsumibleSeleccionado> seleccionados = [];
+  List<Consumible> todosLosConsumibles = []; // Esto se llena desde el backend
+  TextEditingController buscadorController = TextEditingController();
+  TextEditingController nombreRecetaController = TextEditingController();
+  TextEditingController consumiblesController = TextEditingController();
+  TextEditingController cantidadController = TextEditingController();
+  String unidadSeleccionada = 'Gr';
+
+  @override
+  void initState() {
+    super.initState();
+    cargarConsumibles();
   }
 
-  Future<void> _seleccionarConsumibles() async {
-    final List<String> seleccionados = await showDialog(
-      context: context,
-      builder: (BuildContext context) {
-        return MultiSelectDialog(
-          items: _consumibles,
-          initialSelectedItems: _consumiblesSeleccionados,
-          titulo: 'Seleccione los consumibles a usar',
-        );
-      },
-    );
-    if (seleccionados != null) {
+//onSelected
+  Future<void> cargarConsumibles() async {
+    final response = await http.get(
+        Uri.parse('http://localhost:3000/api/admin/getConsumiblesParaReceta'));
+    if (response.statusCode == 200) {
+      final data = jsonDecode(response.body);
       setState(() {
-        _consumiblesSeleccionados = seleccionados;
-        //consumiblesController.text = _consumiblesSeleccionados.join(', ');
+        todosLosConsumibles =
+            (data as List).map((json) => Consumible.fromJson(json)).toList();
       });
     }
   }
 
+//TextField
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -93,422 +99,434 @@ class _formularioRecetasState extends State<formularioRecetas> {
         ),
         child: Column(
           children: [
-            const Padding(
-              padding: EdgeInsets.only(top: 10),
-              child: Center(
-                child: Text(
-                  'Recetas',
-                  style: TextStyle(
-                    fontSize: 30,
-                    color: Colors.white,
-                    fontWeight: FontWeight.bold,
+            Padding(
+              padding: const EdgeInsets.all(16),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Row(
+                    children: [
+                      IconButton(
+                        icon: const Icon(Icons.arrow_back, color: Colors.white),
+                        onPressed: () {
+                          Navigator.pop(context);
+                        },
+                      ),
+                      const SizedBox(width: 10),
+                      const Text(
+                        'Atras',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 24,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ],
                   ),
-                ),
+                  const Text(
+                    'Recetas',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 24,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  CircleAvatar(
+                    radius: 30,
+                    backgroundColor: const Color(0xFF0665A4),
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(100),
+                      child: Image.asset(
+                        'images/PICNITO LOGO.jpeg',
+                        fit: BoxFit.contain,
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ),
-            const SizedBox(
-              height: 20,
-            ),
-            Center(
-              child: Container(
-                width: 750,
-                height: 600,
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: const Color(0xff081C42),
-                  borderRadius: BorderRadius.circular(10),
-                  boxShadow: const [
-                    BoxShadow(
-                      color: Colors.black,
-                      blurRadius: 5,
-                      offset: Offset(0, 5),
-                    ),
+            const SizedBox(height: 20),
+            Expanded(
+              child: SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: DataTable(
+                  border: TableBorder.all(color: Colors.grey),
+                  headingTextStyle: const TextStyle(color: Colors.white),
+                  dataTextStyle: const TextStyle(color: Colors.white),
+                  columns: const [
+                    DataColumn(label: Text('Nombre de la Receta')),
+                    DataColumn(
+                        label: SizedBox(
+                      width: 400,
+                      child: Text('Ingredientes'),
+                    )),
+                    DataColumn(label: Text('Opciones')),
                   ],
-                ),
-                child: Stack(
-                  children: [
-                    Column(
-                      children: [
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          crossAxisAlignment: CrossAxisAlignment.center,
-                          children: [
-                            Row(
-                              children: [
-                                IconButton(
-                                  onPressed: () {
-                                    Navigator.pop(context);
-                                  },
-                                  icon: const Icon(Icons.arrow_back,
-                                      color: Color.fromARGB(255, 255, 255, 255),
-                                      size: 30),
-                                ),
-                                const Text(
-                                  'Atras',
-                                  style: TextStyle(
-                                      fontSize: 20,
-                                      fontWeight: FontWeight.bold,
-                                      color:
-                                          Color.fromARGB(255, 255, 255, 255)),
-                                ),
-                              ],
-                            ),
-                            CircleAvatar(
-                              radius: 30,
-                              backgroundColor: const Color(0xFF0665A4),
-                              child: ClipRRect(
-                                borderRadius: BorderRadius.circular(100),
-                                child: Image.asset(
-                                  'images/PICNITO LOGO.jpeg',
-                                  fit: BoxFit.contain,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(
-                          height: 50,
-                        ),
-                        Padding(
-                          padding: const EdgeInsets.only(left: 10.0),
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            crossAxisAlignment: CrossAxisAlignment.start,
+                  rows: <DataRow>[
+                    DataRow(
+                      cells: <DataCell>[
+                        DataCell(Text('Palomitas de Maiz')),
+                        DataCell(Text('Maiz, Mantequilla, Sal')),
+                        DataCell(
+                          Row(
                             children: [
-                              Column(
-                                //mainAxisAlignment: MainAxisAlignment.center,
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  _imagen == null
-                                      ? Container(
-                                          width: 130,
-                                          height: 180,
-                                          color: Colors.grey[300],
-                                          child: const Icon(Icons.image,
-                                              size: 100, color: Colors.grey),
-                                        )
-                                      : Image.file(
-                                          _imagen!,
-                                          width: 130,
-                                          height: 180,
-                                          fit: BoxFit.contain,
-                                        ),
-                                  const SizedBox(height: 20),
-                                  SizedBox(
-                                    height: 40,
-                                    width: 130,
-                                    child: ElevatedButton(
-                                      onPressed: () {
-                                        _seleccionarImagen();
-                                      },
-                                      style: ElevatedButton.styleFrom(
-                                          shape: RoundedRectangleBorder(
-                                              borderRadius:
-                                                  BorderRadius.circular(5)),
-                                          backgroundColor:
-                                              const Color(0xff434343)),
-                                      child: const Text(
-                                        'Cargar Imagen',
-                                        style: TextStyle(
-                                            fontSize: 12,
-                                            color: Color(0xffF5F5F5)),
-                                      ),
-                                    ),
-                                  )
-                                ],
+                              IconButton(
+                                icon:
+                                    const Icon(Icons.edit, color: Colors.white),
+                                onPressed: () {},
                               ),
-                              const SizedBox(width: 30),
-                              Column(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  const Text(
-                                    'Nombre de la receta',
-                                    style: TextStyle(
-                                        color: Colors.white,
-                                        fontSize: 12,
-                                        fontWeight: FontWeight.bold),
-                                  ),
-                                  const SizedBox(height: 5),
-                                  Container(
-                                    width: 250,
-                                    height: 35,
-                                    decoration: BoxDecoration(
-                                      color: Colors.white,
-                                      borderRadius: BorderRadius.circular(5),
-                                    ),
-                                    child: TextField(
-                                      cursorColor: const Color(0xff000000),
-                                      style: const TextStyle(
-                                          fontSize: 14,
-                                          color: Color(0xff000000)),
-                                      controller: nombreController,
-                                      decoration: const InputDecoration(
-                                        border: InputBorder.none,
-                                        contentPadding: EdgeInsets.only(
-                                            left: 10, bottom: 10),
-                                      ),
-                                    ),
-                                  ),
-                                  const SizedBox(height: 50),
-                                  const Text(
-                                    'Consumibles a usar',
-                                    style: TextStyle(
-                                        color: Colors.white,
-                                        fontSize: 12,
-                                        fontWeight: FontWeight.bold),
-                                  ),
-                                  const SizedBox(height: 5),
-                                  Container(
-                                    width: 250,
-                                    height: 35,
-                                    decoration: BoxDecoration(
-                                      color: Colors.white,
-                                      borderRadius: BorderRadius.circular(5),
-                                    ),
-                                    child: TextField(
-                                      onTap: () {},
-                                      controller: consumiblesController,
-                                      decoration: const InputDecoration(
-                                          hintText: 'Buscar consumible',
-                                          hintStyle: TextStyle(
-                                              color: Colors.black54,
-                                              fontSize: 14),
-                                          border: InputBorder.none,
-                                          contentPadding: EdgeInsets.only(
-                                              left: 10, bottom: 10),
-                                          prefixIcon: Icon(Icons.search)),
-                                    ),
-                                  ),
-                                  const SizedBox(height: 20),
-                                  const Text(
-                                    'Ingrese la cantidad usada de cada consumible',
-                                    style: TextStyle(
-                                        color: Colors.white,
-                                        fontSize: 12,
-                                        fontWeight: FontWeight.bold),
-                                  ),
-                                  const SizedBox(height: 5),
-                                  Container(
-                                    width: 250,
-                                    height: 200,
-                                    decoration: BoxDecoration(
-                                      color: Colors.white,
-                                      borderRadius: BorderRadius.circular(5),
-                                    ),
-                                    child: SingleChildScrollView(
-                                      child: Column(
-                                        children: _consumiblesSeleccionados
-                                            .map((consumible) => ListTile(
-                                                  title: Text(
-                                                    consumible,
-                                                    style: const TextStyle(
-                                                        color: Colors.black,
-                                                        fontSize: 14,
-                                                        fontWeight:
-                                                            FontWeight.bold),
-                                                  ),
-                                                  trailing: Row(
-                                                    // mainAxisAlignment: MainAxisAlignment.spaceAround,
-                                                    mainAxisSize:
-                                                        MainAxisSize.min,
-                                                    children: [
-                                                      Container(
-                                                        width: 40,
-                                                        height: 35,
-                                                        decoration:
-                                                            BoxDecoration(
-                                                          border: Border.all(
-                                                              color:
-                                                                  Colors.black),
-                                                          color: Colors.white,
-                                                          borderRadius:
-                                                              BorderRadius
-                                                                  .circular(5),
-                                                        ),
-                                                        child: TextField(
-                                                          //controller: cConsumiblesController,
-                                                          cursorColor:
-                                                              const Color(
-                                                                  0xff000000),
-                                                          style: const TextStyle(
-                                                              fontSize: 14,
-                                                              color: Color(
-                                                                  0xff000000)),
-                                                          decoration:
-                                                              const InputDecoration(
-                                                            border: InputBorder
-                                                                .none,
-                                                            contentPadding:
-                                                                EdgeInsets.only(
-                                                                    left: 10,
-                                                                    bottom: 10),
-                                                          ),
-                                                        ),
-                                                      ),
-                                                      const SizedBox(width: 6),
-                                                      const Text("Unidad"),
-                                                      IconButton(
-                                                        icon: const Icon(
-                                                            Icons.delete,
-                                                            color: Colors.red,
-                                                            size: 24),
-                                                        onPressed: () {
-                                                          setState(() {
-                                                            _consumiblesSeleccionados
-                                                                .remove(
-                                                                    consumible);
-                                                          });
-                                                        },
-                                                      ),
-                                                    ],
-                                                  ),
-                                                ))
-                                            .toList(),
-                                      ),
-                                    ),
-                                  )
-                                ],
+                              IconButton(
+                                icon: const Icon(Icons.delete,
+                                    color: Colors.white),
+                                onPressed: () {},
                               ),
-                              const SizedBox(width: 15),
-                              Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  const Text(
-                                    'Cantidad producida',
-                                    style: TextStyle(
-                                        color: Colors.white,
-                                        fontSize: 12,
-                                        fontWeight: FontWeight.bold),
-                                  ),
-                                  const SizedBox(height: 5),
-                                  Row(
-                                    children: [
-                                      Container(
-                                        width: 190,
-                                        height: 35,
-                                        decoration: BoxDecoration(
-                                          color: Colors.white,
-                                          borderRadius:
-                                              BorderRadius.circular(5),
-                                        ),
-                                        child: TextField(
-                                          cursorColor: const Color(0xff000000),
-                                          style: const TextStyle(
-                                              fontSize: 14,
-                                              color: Color(0xff000000)),
-                                          controller: stockController,
-                                          decoration: const InputDecoration(
-                                            border: InputBorder.none,
-                                            contentPadding: EdgeInsets.only(
-                                                left: 10, bottom: 10),
-                                          ),
-                                        ),
-                                      ),
-                                      const SizedBox(width: 10),
-                                      Container(
-                                        padding: EdgeInsets.only(left: 10),
-                                        width: 50,
-                                        height: 35,
-                                        decoration: BoxDecoration(
-                                          color: Colors.white,
-                                          borderRadius:
-                                              BorderRadius.circular(5),
-                                        ),
-                                        child: DropdownButton<String>(
-                                          items: <String>[
-                                            'U',
-                                            'Kg',
-                                            'L',
-                                          ].map((String value) {
-                                            return DropdownMenuItem<String>(
-                                              value: value,
-                                              child: Text(value),
-                                            );
-                                          }).toList(),
-                                          onChanged: (String? value) {
-                                            setState(() {
-                                              dropdownValue = value!;
-                                            });
-                                          },
-                                          value: dropdownValue,
-                                          icon: const Icon(
-                                              Icons.arrow_drop_down,
-                                              color: Colors.black),
-                                          iconSize: 20,
-                                          elevation: 16,
-                                          style: const TextStyle(
-                                              color: Colors.black),
-                                          underline: Container(
-                                            height: 0,
-                                            color: Colors.black,
-                                          ),
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                  const SizedBox(height: 50),
-                                  const Text(
-                                    'Costo Total estimado',
-                                    style: TextStyle(
-                                        color: Colors.white,
-                                        fontSize: 12,
-                                        fontWeight: FontWeight.bold),
-                                  ),
-                                  const SizedBox(height: 5),
-                                  Container(
-                                    width: 250,
-                                    height: 35,
-                                    decoration: BoxDecoration(
-                                      color: Colors.white,
-                                      borderRadius: BorderRadius.circular(5),
-                                    ),
-                                    child: TextField(
-                                      readOnly: true,
-                                      cursorColor: const Color(0xff000000),
-                                      style: const TextStyle(
-                                          fontSize: 14,
-                                          color: Color(0xff000000)),
-                                      controller: costoController,
-                                      decoration: const InputDecoration(
-                                        border: InputBorder.none,
-                                        contentPadding: EdgeInsets.only(
-                                            left: 10, bottom: 10),
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              )
                             ],
                           ),
                         ),
                       ],
                     ),
-                    Positioned(
-                      bottom: 20,
-                      right: 20,
-                      child: SizedBox(
-                        height: 40,
-                        width: 200,
-                        child: ElevatedButton(
-                          onPressed: () {},
-                          style: ElevatedButton.styleFrom(
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(5),
-                            ),
-                            backgroundColor: const Color(0xff14AE5C),
-                          ),
-                          child: const Text(
-                            'Guardar Receta',
-                            style: TextStyle(color: Color(0xffF5F5F5)),
-                          ),
-                        ),
-                      ),
-                    ),
                   ],
                 ),
               ),
-            )
+            ),
+            Padding(
+              padding: const EdgeInsets.all(20),
+              child: Align(
+                alignment: Alignment.bottomRight,
+                child: ElevatedButton(
+                  onPressed: () async {
+                    await cargarConsumibles();
+                    showDialog(
+                      context: context,
+                      builder: (BuildContext context) {
+                        return StatefulBuilder(
+                          builder: (BuildContext context,
+                              StateSetter setModalState) {
+                            return AlertDialog(
+                              backgroundColor: const Color(0xff081C42),
+                              shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(10)),
+                              title: const Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Text('Recetas',
+                                      style: TextStyle(
+                                          color: Colors.white,
+                                          fontSize: 20,
+                                          fontWeight: FontWeight.bold)),
+                                ],
+                              ),
+                              content: SizedBox(
+                                width: 750,
+                                height: 475,
+                                child: Column(
+                                  children: [
+                                    TextField(
+                                      controller: nombreRecetaController,
+                                      cursorColor: Colors.white,
+                                      style:
+                                          const TextStyle(color: Colors.white),
+                                      decoration: const InputDecoration(
+                                        labelText: 'Nombre de la Receta',
+                                        labelStyle:
+                                            TextStyle(color: Colors.white),
+                                        enabledBorder: OutlineInputBorder(
+                                          borderSide:
+                                              BorderSide(color: Colors.white),
+                                        ),
+                                        focusedBorder: OutlineInputBorder(
+                                          borderSide:
+                                              BorderSide(color: Colors.white),
+                                        ),
+                                        contentPadding: EdgeInsets.only(
+                                            left: 10, bottom: 10),
+                                      ),
+                                    ),
+                                    const SizedBox(height: 20),
+                                    Autocomplete<Consumible>(
+                                      optionsBuilder:
+                                          (TextEditingValue textEditingValue) {
+                                        return todosLosConsumibles
+                                            .where((c) => c.nombre
+                                                .toLowerCase()
+                                                .contains(textEditingValue.text
+                                                    .toLowerCase()))
+                                            .toList();
+                                      },
+                                      displayStringForOption: (c) => c.nombre,
+                                      fieldViewBuilder: (context, controller,
+                                          focusNode, onEditingComplete) {
+                                        buscadorController = controller;
+                                        return TextField(
+                                          controller: controller,
+                                          focusNode: focusNode,
+                                          style: const TextStyle(
+                                              color: Colors.white),
+                                          decoration: const InputDecoration(
+                                            labelText:
+                                                'Selecciona Ingredientes',
+                                            labelStyle:
+                                                TextStyle(color: Colors.white),
+                                            enabledBorder: OutlineInputBorder(
+                                                borderSide: BorderSide(
+                                                    color: Colors.white)),
+                                          ),
+                                        );
+                                      },
+                                      onSelected: (Consumible seleccion) {
+                                        setModalState(() {
+                                          if (!seleccionados.any(
+                                              (e) => e.id == seleccion.id)) {
+                                            seleccionados
+                                                .add(ConsumibleSeleccionado(
+                                              id: seleccion.id,
+                                              nombre: seleccion.nombre,
+                                              unidad: seleccion.unidad,
+                                            ));
+                                          }
+                                        });
+                                      },
+                                    ),
+                                    const SizedBox(height: 20),
+                                    Row(
+                                      children: [
+                                        Expanded(
+                                          child: TextField(
+                                            controller: cantidadController,
+                                            cursorColor: Colors.white,
+                                            style: const TextStyle(
+                                                color: Colors.white),
+                                            decoration: const InputDecoration(
+                                              labelText: 'Porción de la Receta',
+                                              labelStyle: TextStyle(
+                                                  color: Colors.white),
+                                              enabledBorder: OutlineInputBorder(
+                                                borderSide: BorderSide(
+                                                    color: Colors.white),
+                                              ),
+                                              focusedBorder: OutlineInputBorder(
+                                                borderSide: BorderSide(
+                                                    color: Colors.white),
+                                              ),
+                                              contentPadding: EdgeInsets.only(
+                                                  left: 10, bottom: 10),
+                                            ),
+                                          ),
+                                        ),
+                                        const SizedBox(width: 10),
+                                        Container(
+                                          padding: const EdgeInsets.symmetric(
+                                              horizontal: 10),
+                                          decoration: BoxDecoration(
+                                            border:
+                                                Border.all(color: Colors.white),
+                                            borderRadius:
+                                                BorderRadius.circular(8),
+                                          ),
+                                          child: DropdownButton<String>(
+                                            value: unidadSeleccionada,
+                                            dropdownColor:
+                                                const Color(0xff081C42),
+                                            icon: const Icon(
+                                                Icons.arrow_drop_down,
+                                                color: Colors.white),
+                                            underline: const SizedBox(),
+                                            style: const TextStyle(
+                                                color: Colors.white),
+                                            onChanged: (String? newValue) {
+                                              setModalState(() {
+                                                unidadSeleccionada = newValue!;
+                                              });
+                                            },
+                                            items: <String>['Gr', 'Ml']
+                                                .map<DropdownMenuItem<String>>(
+                                                    (String value) {
+                                              return DropdownMenuItem<String>(
+                                                value: value,
+                                                child: Text(value),
+                                              );
+                                            }).toList(),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                    const SizedBox(height: 20),
+                                    Expanded(
+                                      child: Container(
+                                        padding: const EdgeInsets.all(10),
+                                        decoration: BoxDecoration(
+                                          color: const Color(0xff0A2440),
+                                          borderRadius:
+                                              BorderRadius.circular(8),
+                                          border:
+                                              Border.all(color: Colors.white),
+                                        ),
+                                        child: Column(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
+                                          children: [
+                                            const Text(
+                                              'Consumibles Seleccionados:',
+                                              style: TextStyle(
+                                                color: Colors.white,
+                                                fontSize: 16,
+                                                fontWeight: FontWeight.bold,
+                                              ),
+                                            ),
+                                            const SizedBox(height: 10),
+                                            Expanded(
+                                              child: ListView.builder(
+                                                itemCount: seleccionados.length,
+                                                itemBuilder: (context, index) {
+                                                  final item =
+                                                      seleccionados[index];
+                                                  return Row(
+                                                    mainAxisAlignment:
+                                                        MainAxisAlignment
+                                                            .spaceBetween,
+                                                    children: [
+                                                      Text(item.nombre,
+                                                          style:
+                                                              const TextStyle(
+                                                                  color: Colors
+                                                                      .white)),
+                                                      Row(
+                                                        children: [
+                                                          const Text(
+                                                              'Cantidad:',
+                                                              style: TextStyle(
+                                                                  color: Colors
+                                                                      .white)),
+                                                          const SizedBox(
+                                                              width: 5),
+                                                          SizedBox(
+                                                            width: 50,
+                                                            child: TextField(
+                                                              keyboardType:
+                                                                  TextInputType
+                                                                      .number,
+                                                              style: const TextStyle(
+                                                                  color: Colors
+                                                                      .white),
+                                                              onChanged: (val) {
+                                                                setModalState(
+                                                                    () {
+                                                                  item.cantidad =
+                                                                      double.tryParse(
+                                                                              val) ??
+                                                                          0.0;
+                                                                });
+                                                              },
+                                                              decoration:
+                                                                  const InputDecoration(
+                                                                contentPadding:
+                                                                    EdgeInsets.symmetric(
+                                                                        horizontal:
+                                                                            5),
+                                                                enabledBorder:
+                                                                    OutlineInputBorder(
+                                                                  borderSide:
+                                                                      BorderSide(
+                                                                          color:
+                                                                              Colors.white),
+                                                                ),
+                                                                focusedBorder:
+                                                                    OutlineInputBorder(
+                                                                  borderSide:
+                                                                      BorderSide(
+                                                                          color:
+                                                                              Colors.white),
+                                                                ),
+                                                              ),
+                                                            ),
+                                                          ),
+                                                          const SizedBox(
+                                                              width: 5),
+                                                          Text(item.unidad,
+                                                              style: const TextStyle(
+                                                                  color: Colors
+                                                                      .white)),
+                                                          IconButton(
+                                                            icon: const Icon(
+                                                                Icons.delete,
+                                                                color:
+                                                                    Colors.red),
+                                                            onPressed: () {
+                                                              setModalState(() {
+                                                                seleccionados
+                                                                    .removeAt(
+                                                                        index);
+                                                              });
+                                                            },
+                                                          ),
+                                                        ],
+                                                      ),
+                                                    ],
+                                                  );
+                                                },
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    ),
+                                    const SizedBox(height: 20),
+                                    Align(
+                                      alignment: Alignment.bottomRight,
+                                      child: ElevatedButton(
+                                        onPressed: () {
+                                          // Guardar lógica aquí
+                                          Navigator.of(context).pop();
+                                        },
+                                        style: ElevatedButton.styleFrom(
+                                          padding: const EdgeInsets.symmetric(
+                                              horizontal: 24, vertical: 16),
+                                          minimumSize: const Size(200, 50),
+                                          shape: RoundedRectangleBorder(
+                                              borderRadius:
+                                                  BorderRadius.circular(8)),
+                                          backgroundColor:
+                                              const Color(0xff14AE5C),
+                                        ),
+                                        child: const Text('Guardar',
+                                            style:
+                                                TextStyle(color: Colors.white)),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            );
+                          },
+                        );
+                      },
+                    );
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xff14AE5C),
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 16, vertical: 16),
+                    minimumSize: const Size(150, 50),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                  ),
+                  child: const Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.receipt_long,
+                          color: Color(0xffF5F5F5), size: 20),
+                      SizedBox(width: 8),
+                      Text(
+                        'Crear Receta',
+                        style:
+                            TextStyle(color: Color(0xffF5F5F5), fontSize: 14),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
           ],
         ),
       ),

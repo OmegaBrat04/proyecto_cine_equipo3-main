@@ -473,6 +473,36 @@ router.post('/addConsumible', async (req, res) => {
   }
 });
 
+router.put('/updateConsumible/:nombre', async (req, res) => {
+  const { nombre } = req.params;
+  const { proveedor, stock, precio_unitario, imagen } = req.body;
+
+  try {
+    const request = new sql.Request();
+    request.input('nombre', sql.NVarChar, nombre);
+    request.input('proveedor', sql.NVarChar, proveedor);
+    request.input('stock', sql.Int, stock);
+    request.input('precio_unitario', sql.Float, precio_unitario);
+    request.input('imagen', sql.NVarChar, imagen || null);
+
+    await request.query(`
+      UPDATE Consumibles
+      SET proveedor = @proveedor,
+          stock = @stock,
+          precio_unitario = @precio_unitario,
+          imagen = @imagen
+      WHERE nombre = @nombre
+    `);
+
+    res.status(200).json({ message: 'Consumible actualizado con éxito' });
+  } catch (error) {
+    console.error('Error al actualizar consumible:', error);
+    res.status(500).json({ message: 'Error al actualizar consumible' });
+  }
+});
+
+
+
 // Obtener todos los consumibles
 router.get('/getConsumibles', async (req, res) => {
   try {
@@ -672,13 +702,15 @@ router.get('/getAllConsumibles', async (req, res) => {
     const request = new sql.Request();
     const result = await request.query(`
       SELECT 
-        id,
-        nombre,
-        proveedor,
-        stock,
-        unidad,
-        precio_unitario
-      FROM Consumibles
+  id,
+  nombre,
+  proveedor,
+  stock,
+  unidad,
+  precio_unitario,
+  imagen
+FROM Consumibles
+
       ORDER BY nombre ASC
     `);
     res.status(200).json(result.recordset);
@@ -704,7 +736,6 @@ router.get('/getAllProveedores', async (req, res) => {
 });
 
 
-
 // 📌 Endpoint para subir imágenes
 router.post('/uploadImage', upload.single('poster'), (req, res) => {
   if (!req.file) {
@@ -722,7 +753,7 @@ router.use((err, req, res, next) => {
   res.status(500).json({ message: 'Error interno del servidor' });
 });
 
-
+//--------------------------------- RUTAS DE RECETAS -----------------------------------
 
 router.post('/addReceta', async (req, res) => {
   const { nombre, porcion, unidad, consumibles } = req.body;
@@ -767,6 +798,80 @@ router.post('/addReceta', async (req, res) => {
   }
 });
 
+// ----------------------------------- RUTAS DE Productos -----------------------------------
+
+app.post('/addProducto', async (req, res) => {
+  try {
+    const {
+      nombre,
+      tamano,
+      porcionCantidad,
+      porcionUnidad,
+      stock,
+      precio,
+      imagen
+    } = req.body;
+
+    // Validación básica de campos obligatorios
+    if (
+      !nombre ||
+      !stock ||
+      !precio
+    ) {
+      return res.status(400).json({ message: '🌟 nombre, stock y precio son obligatorios' });
+    }
+
+    const request = new sql.Request();
+    request.input('nombre', sql.NVarChar, nombre);
+    request.input('tamano', sql.NVarChar, tamano || null);
+    request.input('porcionCantidad', sql.Decimal, porcionCantidad || 0);
+    request.input('porcionUnidad', sql.NVarChar, porcionUnidad || null);
+    request.input('stock', sql.Int, stock);
+    request.input('precio', sql.Decimal, precio);
+    request.input('imagen', sql.NVarChar, imagen || null);
+
+    await request.query(`
+        INSERT INTO Productos
+          (nombre, tamano, porcionCantidad, porcionUnidad, stock, precio, imagen)
+        VALUES
+          (@nombre, @tamano, @porcionCantidad, @porcionUnidad, @stock, @precio, @imagen)
+      `);
+
+    res.status(201).json({ message: '✅ Producto agregado con éxito' });
+  } catch (error) {
+    console.error('❌ Error al agregar producto:', error);
+    res.status(500).json({ message: 'Error al agregar producto' });
+  }
+});
+
+// 👉 GET para traer todos los productos
+app.get('/getAllProductos', async (req, res) => {
+  try {
+    const request = new sql.Request();
+    const result = await request.query(`
+      SELECT 
+        idProducto,
+        nombre,
+        stock,
+        precio,
+        imagen
+      FROM dbo.Productos
+    `);
+    // result.recordset es un array de objetos con tus filas
+    res.status(200).json(result.recordset);
+  } catch (error) {
+    console.error('❌ Error al obtener productos:', error);
+    res
+      .status(500)
+      .json({ message: 'Error al obtener productos', error: error.message });
+  }
+});
+
+
+
+
 module.exports = router;
+
+
 
 

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
+import 'package:proyecto_cine_equipo3/Modelo/ModeloConsumible.dart';
 import 'package:proyecto_cine_equipo3/Vistas/Administracion/Menu.dart';
 import 'package:proyecto_cine_equipo3/Vistas/Administracion/RegistroConsumibles.dart';
 
@@ -43,8 +44,8 @@ class _ListaConsumiblesState extends State<ListaConsumibles> {
   }
 
   Future<void> obtenerConsumibles() async {
-    final response =
-        await http.get(Uri.parse('http://localhost:3000/getAllConsumibles'));
+    final response = await http
+        .get(Uri.parse('http://localhost:3000/api/admin/getAllConsumibles'));
     if (response.statusCode == 200) {
       setState(() {
         consumibles = json.decode(response.body);
@@ -54,8 +55,8 @@ class _ListaConsumiblesState extends State<ListaConsumibles> {
   }
 
   Future<void> obtenerProveedores() async {
-    final response =
-        await http.get(Uri.parse('http://localhost:3000/getProveedores'));
+    final response = await http
+        .get(Uri.parse('http://localhost:3000/api/admin/getProveedores'));
     if (response.statusCode == 200) {
       List<dynamic> data = json.decode(response.body);
       setState(() {
@@ -214,49 +215,73 @@ class _ListaConsumiblesState extends State<ListaConsumibles> {
                         DataCell(
                             Text(consumible['precio_unitario'].toString())),
                         DataCell(
-                          IconButton(
-                            icon: const Icon(Icons.delete,
-                                color: Colors.redAccent),
-                            onPressed: () async {
-                              final confirm = await showDialog<bool>(
-                                context: context,
-                                builder: (_) => AlertDialog(
-                                  title: const Text("¿Eliminar consumible?"),
-                                  content: Text(
-                                      "Estás por eliminar '${consumible['nombre']}'"),
-                                  actions: [
-                                    TextButton(
-                                        onPressed: () => Navigator.of(context,
-                                                rootNavigator: true)
-                                            .pop(false),
-                                        child: const Text("Cancelar")),
-                                    TextButton(
-                                        onPressed: () => Navigator.of(context,
-                                                rootNavigator: true)
-                                            .pop(true),
-                                        child: const Text("Eliminar")),
-                                  ],
-                                ),
-                              );
-                              if (confirm == true) {
-                                final response = await http.delete(
-                                  Uri.parse(
-                                      'http://localhost:3000/deleteConsumible/${Uri.encodeComponent(consumible['nombre'])}'),
-                                );
-                                if (response.statusCode == 200) {
-                                  setState(() {
-                                    consumibles.removeWhere((c) =>
-                                        c['nombre'] == consumible['nombre']);
-                                    _filtrarConsumibles();
-                                  });
-                                } else {
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    const SnackBar(
-                                        content: Text('❌ No se pudo eliminar')),
+                          Row(
+                            children: [
+                              IconButton(
+                                icon: Icon(Icons.edit),
+                                onPressed: () {
+                                  Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                        builder: (context) =>
+                                            RegistroConsumiblesView(
+                                                consumibleExistente:
+                                                    Consumible.fromJson(
+                                                        consumible))),
                                   );
-                                }
-                              }
-                            },
+                                },
+                              ),
+                              IconButton(
+                                icon: const Icon(Icons.delete,
+                                    color: Colors.redAccent),
+                                onPressed: () async {
+                                  final confirm = await showDialog<bool>(
+                                    context: context,
+                                    builder: (_) => AlertDialog(
+                                      title:
+                                          const Text("¿Eliminar consumible?"),
+                                      content: Text(
+                                          "Estás por eliminar '${consumible['nombre']}'"),
+                                      actions: [
+                                        TextButton(
+                                            onPressed: () => Navigator.of(
+                                                    context,
+                                                    rootNavigator: true)
+                                                .pop(false),
+                                            child: const Text("Cancelar")),
+                                        TextButton(
+                                            onPressed: () => Navigator.of(
+                                                    context,
+                                                    rootNavigator: true)
+                                                .pop(true),
+                                            child: const Text("Eliminar")),
+                                      ],
+                                    ),
+                                  );
+                                  if (confirm == true) {
+                                    final response = await http.delete(
+                                      Uri.parse(
+                                          'http://localhost:3000/api/admin/deleteConsumible/${Uri.encodeComponent(consumible['nombre'])}'),
+                                    );
+                                    if (response.statusCode == 200) {
+                                      setState(() {
+                                        consumibles.removeWhere((c) =>
+                                            c['nombre'] ==
+                                            consumible['nombre']);
+                                        _filtrarConsumibles();
+                                      });
+                                    } else {
+                                      ScaffoldMessenger.of(context)
+                                          .showSnackBar(
+                                        const SnackBar(
+                                            content:
+                                                Text('❌ No se pudo eliminar')),
+                                      );
+                                    }
+                                  }
+                                },
+                              ),
+                            ],
                           ),
                         ),
                       ],
