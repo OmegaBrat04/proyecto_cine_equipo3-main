@@ -4,8 +4,6 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'dart:io';
 
-import 'package:proyecto_cine_equipo3/Vistas/Administracion/Menu.dart';
-
 void main() {
   runApp(const AFunciones());
 }
@@ -17,11 +15,8 @@ class AFunciones extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const MaterialApp(
-      debugShowCheckedModeBanner: false,
-      home: Scaffold(
-        body: Funciones(),
-      ),
+    return Scaffold(
+      body: Funciones(),
     );
   }
 }
@@ -48,7 +43,7 @@ class _FuncionesState extends State<Funciones> {
   final idiomaController = TextEditingController();
   final buscadorController = TextEditingController();
 
-  File? _imagen; // si más adelante permites picker local
+  File? _imagen;
   String dropdownValue = 'Tradicional';
   String dropdownValue2 = '1';
   String dropdownValue3 = 'Español';
@@ -61,7 +56,8 @@ class _FuncionesState extends State<Funciones> {
 
   Future<void> fetchPeliculas() async {
     try {
-      final resp = await http.get(Uri.parse('http://localhost:3000/getMovies'));
+      final resp = await http
+          .get(Uri.parse('http://localhost:3000/api/admin/getMovies'));
       if (resp.statusCode == 200) {
         setState(() {
           peliculas = List<Map<String, dynamic>>.from(json.decode(resp.body));
@@ -140,11 +136,7 @@ class _FuncionesState extends State<Funciones> {
                         children: [
                           IconButton(
                             onPressed: () {
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                    builder: (context) => const Menu()),
-                              );
+                              Navigator.pop(context);
                             },
                             icon: const Icon(Icons.arrow_back,
                                 color: Colors.white, size: 30),
@@ -273,232 +265,242 @@ class _FuncionesState extends State<Funciones> {
                                       )),
                           ],
                         ),
+                        const SizedBox(width: 30),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text('Titulo',
+                                  style: TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.bold)),
+                              const SizedBox(height: 5),
+                              Container(
+                                width: double.infinity,
+                                height: 30,
+                                decoration: BoxDecoration(
+                                  color: Colors.white,
+                                  borderRadius: BorderRadius.circular(5),
+                                ),
+                                child: TextField(
+                                  controller: tituloController,
+                                  decoration: const InputDecoration(
+                                    border: InputBorder.none,
+                                    contentPadding:
+                                        EdgeInsets.only(left: 10, bottom: 10),
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(height: 20),
+                              const Text('Asigne un horario',
+                                  style: TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.bold)),
+                              const SizedBox(height: 5),
+                              Container(
+                                width: double.infinity,
+                                height: 30,
+                                decoration: BoxDecoration(
+                                  color: Colors.white,
+                                  borderRadius: BorderRadius.circular(5),
+                                ),
+                                child: TextField(
+                                  controller: horarioController,
+                                  readOnly: true,
+                                  onTap: _seleccionarHorario,
+                                  decoration: const InputDecoration(
+                                    hintText: 'Seleccione un horario',
+                                    hintStyle: TextStyle(
+                                        color: Colors.grey, fontSize: 12),
+                                    prefixIcon: Icon(Icons.access_time),
+                                    border: InputBorder.none,
+                                    contentPadding:
+                                        EdgeInsets.only(left: 10, bottom: 10),
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(height: 20),
+                              const Text('Tipo de Sala',
+                                  style: TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.bold)),
+                              const SizedBox(height: 5),
+                              Container(
+                                padding: const EdgeInsets.only(left: 10),
+                                width: double.infinity,
+                                height: 30,
+                                decoration: BoxDecoration(
+                                  color: Colors.white,
+                                  borderRadius: BorderRadius.circular(5),
+                                ),
+                                child: DropdownButton<String>(
+                                  underline: Container(),
+                                  dropdownColor:
+                                      const Color.fromARGB(255, 255, 255, 255),
+                                  value: dropdownValue,
+                                  icon: const Icon(Icons.arrow_drop_down,
+                                      color: Colors.black),
+                                  isExpanded: true,
+                                  onChanged: (String? newValue) {
+                                    setState(() => dropdownValue = newValue!);
+                                  },
+                                  items: <String>['Tradicional', '3D']
+                                      .map<DropdownMenuItem<String>>(
+                                          (String value) {
+                                    return DropdownMenuItem<String>(
+                                      value: value,
+                                      child: Text(value),
+                                    );
+                                  }).toList(),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
 
                         const SizedBox(width: 30),
 
-                        // Formulario
-                        Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            const Text('Titulo',
-                                style: TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.bold)),
-                            const SizedBox(height: 5),
-                            Container(
-                              width: 200,
-                              height: 30,
-                              decoration: BoxDecoration(
-                                color: Colors.white,
-                                borderRadius: BorderRadius.circular(5),
-                              ),
-                              child: TextField(
-                                controller: tituloController,
-                                decoration: const InputDecoration(
-                                  border: InputBorder.none,
-                                  contentPadding:
-                                      EdgeInsets.only(left: 10, bottom: 10),
+                        // Segunda columna
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text('Seleccione una Sala',
+                                  style: TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.bold)),
+                              const SizedBox(height: 5),
+                              Container(
+                                padding: const EdgeInsets.only(left: 10),
+                                width: double.infinity,
+                                height: 30,
+                                decoration: BoxDecoration(
+                                  color: Colors.white,
+                                  borderRadius: BorderRadius.circular(5),
+                                ),
+                                child: DropdownButton<String>(
+                                  underline: Container(),
+                                  dropdownColor:
+                                      const Color.fromARGB(255, 255, 255, 255),
+                                  value: dropdownValue2,
+                                  icon: const Icon(Icons.arrow_drop_down,
+                                      color: Colors.black),
+                                  isExpanded: true,
+                                  onChanged: (String? newValue) {
+                                    setState(() => dropdownValue2 = newValue!);
+                                  },
+                                  items: <String>[
+                                    '1',
+                                    '2',
+                                    '3',
+                                    '4',
+                                    '5',
+                                    '6',
+                                    '7',
+                                    '8'
+                                  ].map<DropdownMenuItem<String>>(
+                                      (String value) {
+                                    return DropdownMenuItem<String>(
+                                      value: value,
+                                      child: Text(value),
+                                    );
+                                  }).toList(),
                                 ),
                               ),
-                            ),
-                            const SizedBox(height: 20),
-                            const Text('Asigne un horario',
-                                style: TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.bold)),
-                            const SizedBox(height: 5),
-                            Container(
-                              width: 200,
-                              height: 30,
-                              decoration: BoxDecoration(
-                                color: Colors.white,
-                                borderRadius: BorderRadius.circular(5),
-                              ),
-                              child: TextField(
-                                controller: horarioController,
-                                readOnly: true,
-                                onTap: _seleccionarHorario,
-                                decoration: const InputDecoration(
-                                  hintText: 'Seleccione un horario',
-                                  hintStyle: TextStyle(
-                                      color: Colors.grey, fontSize: 12),
-                                  prefixIcon: Icon(Icons.access_time),
-                                  border: InputBorder.none,
-                                  contentPadding:
-                                      EdgeInsets.only(left: 10, bottom: 10),
+                              const SizedBox(height: 20),
+                              const Text('Asigne una Fecha',
+                                  style: TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.bold)),
+                              const SizedBox(height: 5),
+                              Container(
+                                width: double.infinity,
+                                height: 30,
+                                decoration: BoxDecoration(
+                                  color: Colors.white,
+                                  borderRadius: BorderRadius.circular(5),
+                                ),
+                                child: TextField(
+                                  controller: fechaController,
+                                  readOnly: true,
+                                  onTap: _seleccionarFecha,
+                                  decoration: const InputDecoration(
+                                    hintText: 'Seleccione una fecha',
+                                    hintStyle: TextStyle(
+                                        color: Colors.grey, fontSize: 12),
+                                    prefixIcon: Icon(Icons.date_range),
+                                    border: InputBorder.none,
+                                    contentPadding:
+                                        EdgeInsets.only(left: 10, bottom: 10),
+                                  ),
                                 ),
                               ),
-                            ),
-                            const SizedBox(height: 20),
-                            const Text('Tipo de Sala',
-                                style: TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.bold)),
-                            const SizedBox(height: 5),
-                            Container(
-                              padding: const EdgeInsets.only(left: 10),
-                              width: 200,
-                              height: 30,
-                              decoration: BoxDecoration(
-                                color: Colors.white,
-                                borderRadius: BorderRadius.circular(5),
-                              ),
-                              child: DropdownButton<String>(
-                                underline: Container(),
-                                dropdownColor:
-                                    const Color.fromARGB(255, 255, 255, 255),
-                                value: dropdownValue,
-                                icon: const Icon(Icons.arrow_drop_down,
-                                    color: Colors.black),
-                                isExpanded: true,
-                                onChanged: (String? newValue) {
-                                  setState(() => dropdownValue = newValue!);
-                                },
-                                items: <String>[
-                                  'Tradicional',
-                                  '3D'
-                                ].map<DropdownMenuItem<String>>((String value) {
-                                  return DropdownMenuItem<String>(
-                                    value: value,
-                                    child: Text(value),
-                                  );
-                                }).toList(),
-                              ),
-                            ),
-                            const SizedBox(height: 20),
-                            const Text('Seleccione una Sala',
-                                style: TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.bold)),
-                            const SizedBox(height: 5),
-                            Container(
-                              padding: const EdgeInsets.only(left: 10),
-                              width: 200,
-                              height: 30,
-                              decoration: BoxDecoration(
-                                color: Colors.white,
-                                borderRadius: BorderRadius.circular(5),
-                              ),
-                              child: DropdownButton<String>(
-                                underline: Container(),
-                                dropdownColor:
-                                    const Color.fromARGB(255, 255, 255, 255),
-                                value: dropdownValue2,
-                                icon: const Icon(Icons.arrow_drop_down,
-                                    color: Colors.black),
-                                isExpanded: true,
-                                onChanged: (String? newValue) {
-                                  setState(() => dropdownValue2 = newValue!);
-                                },
-                                items: <String>[
-                                  '1',
-                                  '2',
-                                  '3',
-                                  '4',
-                                  '5',
-                                  '6',
-                                  '7',
-                                  '8'
-                                ].map<DropdownMenuItem<String>>((String value) {
-                                  return DropdownMenuItem<String>(
-                                    value: value,
-                                    child: Text(value),
-                                  );
-                                }).toList(),
-                              ),
-                            ),
-                            const SizedBox(height: 20),
-                            const Text('Asigne una Fecha',
-                                style: TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.bold)),
-                            const SizedBox(height: 5),
-                            Container(
-                              width: 200,
-                              height: 30,
-                              decoration: BoxDecoration(
-                                color: Colors.white,
-                                borderRadius: BorderRadius.circular(5),
-                              ),
-                              child: TextField(
-                                controller: fechaController,
-                                readOnly: true,
-                                onTap: _seleccionarFecha,
-                                decoration: const InputDecoration(
-                                  hintText: 'Seleccione una fecha',
-                                  hintStyle: TextStyle(
-                                      color: Colors.grey, fontSize: 12),
-                                  prefixIcon: Icon(Icons.date_range),
-                                  border: InputBorder.none,
-                                  contentPadding:
-                                      EdgeInsets.only(left: 10, bottom: 10),
+                              const SizedBox(height: 20),
+                              const Text('Seleccione Idioma',
+                                  style: TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.bold)),
+                              const SizedBox(height: 5),
+                              Container(
+                                padding: const EdgeInsets.only(left: 10),
+                                width: double.infinity,
+                                height: 30,
+                                decoration: BoxDecoration(
+                                  color: Colors.white,
+                                  borderRadius: BorderRadius.circular(5),
+                                ),
+                                child: DropdownButton<String>(
+                                  underline: Container(),
+                                  dropdownColor:
+                                      const Color.fromARGB(255, 255, 255, 255),
+                                  value: dropdownValue3,
+                                  icon: const Icon(Icons.arrow_drop_down,
+                                      color: Colors.black),
+                                  isExpanded: true,
+                                  onChanged: (String? newValue) {
+                                    setState(() => dropdownValue3 = newValue!);
+                                  },
+                                  items: <String>[
+                                    'Español',
+                                    'Ingles',
+                                    'Frances',
+                                    'Japon'
+                                  ].map<DropdownMenuItem<String>>(
+                                      (String value) {
+                                    return DropdownMenuItem<String>(
+                                      value: value,
+                                      child: Text(value),
+                                    );
+                                  }).toList(),
                                 ),
                               ),
-                            ),
-                            const SizedBox(height: 20),
-                            const Text('Seleccione Idioma',
-                                style: TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.bold)),
-                            const SizedBox(height: 5),
-                            Container(
-                              padding: const EdgeInsets.only(left: 10),
-                              width: 200,
-                              height: 30,
-                              decoration: BoxDecoration(
-                                color: Colors.white,
-                                borderRadius: BorderRadius.circular(5),
-                              ),
-                              child: DropdownButton<String>(
-                                underline: Container(),
-                                dropdownColor:
-                                    const Color.fromARGB(255, 255, 255, 255),
-                                value: dropdownValue3,
-                                icon: const Icon(Icons.arrow_drop_down,
-                                    color: Colors.black),
-                                isExpanded: true,
-                                onChanged: (String? newValue) {
-                                  setState(() => dropdownValue3 = newValue!);
-                                },
-                                items: <String>[
-                                  'Español',
-                                  'Ingles',
-                                  'Frances',
-                                  'Japon'
-                                ].map<DropdownMenuItem<String>>((String value) {
-                                  return DropdownMenuItem<String>(
-                                    value: value,
-                                    child: Text(value),
-                                  );
-                                }).toList(),
-                              ),
-                            ),
-                            const SizedBox(height: 20),
-                            Container(
-                              height: 40,
-                              width: 200,
-                              child: ElevatedButton(
-                                onPressed: () {
-                                  // TODO: guardar función
-                                },
-                                style: ElevatedButton.styleFrom(
-                                  shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(5)),
-                                  backgroundColor: const Color(0xff14AE5C),
-                                ),
-                                child: const Text(
-                                  'Guardar Funcion',
-                                  style: TextStyle(color: Color(0xffF5F5F5)),
+                              const SizedBox(height: 20),
+                              Container(
+                                height: 40,
+                                width: double.infinity,
+                                child: ElevatedButton(
+                                  onPressed: () {
+                                    // TODO: guardar función
+                                  },
+                                  style: ElevatedButton.styleFrom(
+                                    shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(5)),
+                                    backgroundColor: const Color(0xff14AE5C),
+                                  ),
+                                  child: const Text(
+                                    'Guardar Funcion',
+                                    style: TextStyle(color: Color(0xffF5F5F5)),
+                                  ),
                                 ),
                               ),
-                            ),
-                          ],
+                            ],
+                          ),
                         ),
                       ],
                     ),

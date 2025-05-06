@@ -16,12 +16,9 @@ class Registroproductos extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const MaterialApp(
-      debugShowCheckedModeBanner: false,
-      home: Scaffold(
+    return Scaffold(
         body: formulario(),
-      ),
-    );
+      );
   }
 }
 
@@ -214,7 +211,7 @@ class _formularioState extends State<formulario> {
       'imagen': _imagen?.path ?? '',
     };
 
-    final uri = Uri.parse('http://localhost:3000/addProducto');
+    final uri = Uri.parse('http://localhost:3000/api/admin/addProducto');
     try {
       final resp = await http.post(
         uri,
@@ -464,7 +461,7 @@ class _formularioState extends State<formulario> {
   Future<void> fetchIntermedios() async {
     try {
       final response =
-          await http.get(Uri.parse('http://localhost:3000/getIntermedios'));
+          await http.get(Uri.parse('http://localhost:3000/api/admin/getIntermedios'));
       if (response.statusCode == 200) {
         setState(() {
           intermedios = json.decode(response.body);
@@ -479,7 +476,7 @@ class _formularioState extends State<formulario> {
   Future<void> fetchConsumibles() async {
     try {
       final response =
-          await http.get(Uri.parse('http://localhost:3000/getConsumibles'));
+          await http.get(Uri.parse('http://localhost:3000/api/admin/getConsumibles'));
       if (response.statusCode == 200) {
         setState(() {
           consumibles = json.decode(response.body);
@@ -561,13 +558,7 @@ class _formularioState extends State<formulario> {
                             children: [
                               IconButton(
                                 onPressed: () {
-                                  Navigator.pushReplacement(
-                                    context,
-                                    MaterialPageRoute(
-                                        builder: (context) => const Menu(
-                                           /* nombre: 'NombreX',
-                                            apellidos: 'ApellidoX'*/)),
-                                  );
+                                  Navigator.pop(context);
                                 },
                                 icon: const Icon(Icons.arrow_back,
                                     color: Colors.white, size: 30),

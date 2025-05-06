@@ -800,7 +800,7 @@ router.post('/addReceta', async (req, res) => {
 
 // ----------------------------------- RUTAS DE Productos -----------------------------------
 
-app.post('/addProducto', async (req, res) => {
+router.post('/addProducto', async (req, res) => {
   try {
     const {
       nombre,
@@ -845,7 +845,7 @@ app.post('/addProducto', async (req, res) => {
 });
 
 // 👉 GET para traer todos los productos
-app.get('/getAllProductos', async (req, res) => {
+router.get('/getAllProductos', async (req, res) => {
   try {
     const request = new sql.Request();
     const result = await request.query(`

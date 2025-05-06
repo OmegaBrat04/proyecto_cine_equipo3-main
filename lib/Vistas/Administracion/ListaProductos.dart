@@ -15,11 +15,8 @@ class ListaProductos extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const MaterialApp(
-      debugShowCheckedModeBanner: false,
-      home: Scaffold(
-        body: Lista(),
-      ),
+    return Scaffold(
+      body: Lista(),
     );
   }
 }
@@ -70,7 +67,7 @@ class _ListaState extends State<Lista> {
   }
 
   Future<void> _fetchProductos() async {
-    final url = Uri.parse('http://localhost:3000/getAllProductos');
+    final url = Uri.parse('http://localhost:3000/api/admin/getAllProductos');
     try {
       final response = await http.get(url);
       if (response.statusCode == 200) {
@@ -157,36 +154,75 @@ class _ListaState extends State<Lista> {
                 ),
               ),
               const SizedBox(height: 20),
-              SizedBox(
-                width: MediaQuery.of(context).size.width * 0.4,
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 10.0),
-                  child: TextField(
-                    controller: buscadorController,
-                    style: const TextStyle(color: Colors.white),
-                    decoration: InputDecoration(
-                      hintText: 'Buscar Producto...',
-                      hintStyle: const TextStyle(color: Colors.white70),
-                      prefixIcon: const Icon(Icons.search, color: Colors.white),
-                      filled: true,
-                      fillColor: Colors.white.withOpacity(0.2),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(10),
-                        borderSide: BorderSide.none,
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+                child: Row(
+                  children: [
+                    // Buscador
+                    Expanded(
+                      flex: 3,
+                      child: TextField(
+                        controller: buscadorController,
+                        style: const TextStyle(color: Colors.white),
+                        decoration: InputDecoration(
+                          hintText: 'Buscar Producto...',
+                          hintStyle: const TextStyle(color: Colors.white70),
+                          prefixIcon:
+                              const Icon(Icons.search, color: Colors.white),
+                          filled: true,
+                          fillColor: Colors.white.withOpacity(0.2),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(10),
+                            borderSide: BorderSide.none,
+                          ),
+                        ),
+                        onChanged: (value) {
+                          setState(() {
+                            productosFiltrados = productos
+                                .where((p) => p.nombre
+                                    .toLowerCase()
+                                    .contains(value.toLowerCase()))
+                                .toList();
+                          });
+                        },
                       ),
                     ),
-                    onChanged: (value) {
-                      setState(() {
-                        productosFiltrados = productos
-                            .where((p) => p.nombre.toLowerCase().contains(
-                                  value.toLowerCase(),
-                                ))
-                            .toList();
-                      });
-                    },
-                  ),
+                    const SizedBox(width: 20),
+                    // Botón Añadir Producto
+                    ElevatedButton(
+                      onPressed: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                              builder: (context) => Registroproductos()),
+                        );
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xff14AE5C),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 16, vertical: 16),
+                        minimumSize: const Size(150, 50),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                      ),
+                      child: const Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.add, color: Color(0xffF5F5F5), size: 20),
+                          SizedBox(width: 8),
+                          Text(
+                            'Añadir Producto',
+                            style: TextStyle(
+                                color: Color(0xffF5F5F5), fontSize: 14),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
                 ),
               ),
+
               const SizedBox(height: 20),
               Center(
                 child: Container(
