@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:flutter/material.dart';
+import 'package:proyecto_cine_equipo3/Controlador/Administracion/peliculas_controller.dart';
 import 'package:proyecto_cine_equipo3/Vistas/Administracion/Menu.dart';
 import 'package:proyecto_cine_equipo3/Vistas/Administracion/RegistrarPeliculas.dart';
 
@@ -36,36 +37,25 @@ class _PeliculasState extends State<Peliculas> {
     fetchMovies();
   }
 
-  void eliminarPelicula(int id) async {
-    try {
-      final response = await http.delete(
-        Uri.parse('http://localhost:3000/api/admin/deleteMovie/$id'),
+  Future<void> eliminarPelicula(int id) async {
+    final exito = await PeliculasController.eliminarPelicula(id);
+
+    if (exito) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Película eliminada con éxito'),
+          backgroundColor: Colors.green,
+        ),
       );
 
-      if (response.statusCode == 200) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Película eliminada con éxito'),
-            backgroundColor: Colors.green,
-          ),
-        );
-
-        setState(() {
-          peliculas.removeWhere((pelicula) => pelicula['ID_Pelicula'] == id);
-          peliculasFiltradas = List.from(peliculas);
-        });
-      } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Error al eliminar la película'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
-    } catch (e) {
+      setState(() {
+        peliculas.removeWhere((pelicula) => pelicula['id'] == id);
+        peliculasFiltradas = List.from(peliculas);
+      });
+    } else {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Error de conexión: $e'),
+        const SnackBar(
+          content: Text('Error al eliminar la película'),
           backgroundColor: Colors.red,
         ),
       );
@@ -212,7 +202,15 @@ class _PeliculasState extends State<Peliculas> {
                         ),
                         side: const BorderSide(color: Colors.black, width: 1),
                       ),
-                      onPressed: () {},
+                      onPressed: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) =>
+                                RPeliculas(pelicula: pelicula),
+                          ),
+                        );
+                      },
                       child: const Text('Editar',
                           style: TextStyle(color: Colors.black)),
                     ),
@@ -226,7 +224,7 @@ class _PeliculasState extends State<Peliculas> {
                         ),
                       ),
                       onPressed: () {
-                        _confirmarEliminacion(context, pelicula['ID_Pelicula']);
+                        _confirmarEliminacion(context, pelicula['id']);
                       },
                       child: const Text('Eliminar',
                           style: TextStyle(color: Colors.black)),
@@ -239,44 +237,6 @@ class _PeliculasState extends State<Peliculas> {
         ],
       ),
     );
-  }
-
-// Función para mostrar el diálogo de confirmación
-
-// Función para eliminar la película
-  void _eliminarPelicula(int id) async {
-    try {
-      final response = await http.delete(
-        Uri.parse('http://localhost:3000/api/admin/deleteMovie/$id'),
-      );
-
-      if (response.statusCode == 200) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Película eliminada con éxito'),
-            backgroundColor: Colors.green,
-          ),
-        );
-
-        setState(() {
-          peliculas.removeWhere((pelicula) => pelicula['id'] == id);
-        });
-      } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Error al eliminar la película'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Error de conexión: $e'),
-          backgroundColor: Colors.red,
-        ),
-      );
-    }
   }
 
   @override

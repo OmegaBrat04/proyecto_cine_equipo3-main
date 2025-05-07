@@ -109,21 +109,14 @@ class _SeleccionFuncionesState extends State<SeleccionFunciones> {
               ),
               child: ClipRRect(
                 borderRadius: BorderRadius.circular(5),
-                child: funcion.poster.startsWith('data:image')
-                    ? Image.memory(
-                        // Decodifica el base64
-                        const Base64Decoder().convert(
-                          funcion.poster.split(',').last,
-                        ),
+                child: funcion.poster.isNotEmpty
+                    ? Image.network(
+                        funcion.poster,
                         fit: BoxFit.cover,
-                        errorBuilder: (context, error, stackTrace) {
-                          return const Icon(Icons.broken_image, size: 40);
-                        },
+                        errorBuilder: (context, error, stackTrace) =>
+                            const Icon(Icons.broken_image, size: 40),
                       )
-                    : Image.asset(
-                        'assets/placeholder.jpg',
-                        fit: BoxFit.cover,
-                      ),
+                    : const Icon(Icons.image_not_supported, size: 40),
               ),
             ),
             const SizedBox(width: 10),

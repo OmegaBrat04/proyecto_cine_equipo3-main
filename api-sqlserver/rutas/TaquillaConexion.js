@@ -37,11 +37,11 @@ router.get('/funciones', async (req, res) => {
         result.recordset.forEach(row => {
             const id = row.id_Pelicula;
 
-            // Convertir poster binario a base64
-            let posterBase64 = null;
-            if (row.poster && Buffer.isBuffer(row.poster)) {
-                posterBase64 = `data:image/jpeg;base64,${row.poster.toString('base64')}`;
-            }
+            let posterUrl = row.poster && typeof row.poster === 'string' && row.poster.trim() !== ''
+                ? row.poster
+                : 'http://localhost:3000/uploads/placeholder.jpg'; 
+
+
 
             if (!agrupado[id]) {
                 agrupado[id] = {
@@ -49,7 +49,7 @@ router.get('/funciones', async (req, res) => {
                     genero: row.genero,
                     clasificacion: row.clasificacion,
                     duracion: row.duracion,
-                    poster: posterBase64,
+                    poster: posterUrl,
                     funciones: {}
                 };
             }

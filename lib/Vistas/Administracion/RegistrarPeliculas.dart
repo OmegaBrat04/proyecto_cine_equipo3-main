@@ -6,6 +6,8 @@ import 'package:intl/intl.dart';
 import 'package:proyecto_cine_equipo3/Modelo/ModeloPeliculas.dart';
 import 'package:proyecto_cine_equipo3/Vistas/Administracion/Menu.dart';
 import 'package:proyecto_cine_equipo3/Vistas/Administracion/Peliculas.dart';
+import 'package:proyecto_cine_equipo3/Controlador/Administracion/peliculas_controller.dart';
+
 import 'dart:io';
 import 'package:proyecto_cine_equipo3/Vistas/Services/Multiseleccion.dart';
 import 'Funciones.dart';
@@ -15,18 +17,20 @@ void main() {
 }
 
 class RPeliculas extends StatelessWidget {
-  const RPeliculas({super.key});
+  final Map<String, dynamic>? pelicula;
+  const RPeliculas({super.key, this.pelicula});
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: ListaPeliculas(),
+      body: ListaPeliculas(pelicula: pelicula),
     );
   }
 }
 
 class ListaPeliculas extends StatefulWidget {
-  const ListaPeliculas({super.key});
+  final Map<String, dynamic>? pelicula;
+  const ListaPeliculas({super.key, this.pelicula});
 
   @override
   _ListaPeliculasState createState() => _ListaPeliculasState();
@@ -34,6 +38,41 @@ class ListaPeliculas extends StatefulWidget {
 
 //Guardar
 class _ListaPeliculasState extends State<ListaPeliculas> {
+  String? _posterUrlActual;
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.pelicula != null) {
+      final p = widget.pelicula!;
+      tituloController.text = p['titulo'] ?? '';
+      directorController.text = p['director'] ?? '';
+      duracionController.text = _formatoDuracion(p['duracion']);
+      idiomaController.text = p['idioma'] ?? '';
+      generoController.text = p['genero'] ?? '';
+      dropdownValue = p['clasificacion'] ?? 'B';
+      sinopsisController.text = p['sinopsis'] ?? '';
+      if (p['poster'] != null && p['poster'].toString().isNotEmpty) {
+        _posterUrlActual = p['poster'];
+      }
+
+      final valor = p['subtitulos'];
+      subtitulos = (valor == true || valor == 1 || valor == '1') ? 'Si' : 'No';
+    }
+  }
+
+  String _formatoDuracion(dynamic duracionSQL) {
+    try {
+      if (duracionSQL is String && duracionSQL.contains(':')) {
+        final partes = duracionSQL.split(':');
+        final horas = int.tryParse(partes[0]) ?? 0;
+        final minutos = int.tryParse(partes[1]) ?? 0;
+        return '${horas}h ${minutos}m';
+      }
+    } catch (_) {}
+    return '0h 0m';
+  }
+
   final tituloController = TextEditingController();
   final directorController = TextEditingController();
   final duracionController = TextEditingController();
@@ -100,9 +139,9 @@ class _ListaPeliculasState extends State<ListaPeliculas> {
     final genero = generoController.text.trim();
     final clasificacion = dropdownValue;
     final sinopsis = sinopsisController.text.trim();
-    final subtitulosBool = subtitulos == "Si" ? "1" : "0";
+    final subtitulosBool = subtitulos == "Si";
 
-    // Validación de campos
+// Validación de campos
     if ([
       titulo,
       director,
@@ -121,22 +160,18 @@ class _ListaPeliculasState extends State<ListaPeliculas> {
       return;
     }
 
-    // Subir imagen
+// Subir imagen si existe
     String? posterUrl;
+
     if (_imagen != null) {
       posterUrl = await subirImagen(_imagen!);
-      if (posterUrl == null) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text("Error al subir la imagen"),
-            backgroundColor: Colors.red,
-          ),
-        );
-        return;
-      }
     }
 
-    // Crear modelo y enviar
+    if (posterUrl == null && _posterUrlActual != null) {
+      posterUrl = _posterUrlActual;
+    }
+
+// Crear el modelo
     final pelicula = PeliculaModel(
       titulo: titulo,
       director: director,
@@ -148,39 +183,33 @@ class _ListaPeliculasState extends State<ListaPeliculas> {
 
     final body = pelicula.toJson(sinopsis, subtitulosBool, posterUrl);
 
-    try {
-      final response = await http.post(
-        Uri.parse('http://localhost:3000/api/admin/addMovie'),
-        headers: {"Content-Type": "application/json"},
-        body: json.encode(body),
-      );
+    bool exito;
 
-      if (response.statusCode == 201) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text("✅ Película guardada con éxito"),
-            backgroundColor: Colors.green,
-          ),
-        );
-        await Future.delayed(const Duration(seconds: 2));
-        if (mounted) {
-          Navigator.pushReplacement(
-            context,
-            MaterialPageRoute(builder: (context) => const Peliculas()),
-          );
-        }
-      } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text("❌ Error al guardar película: ${response.body}"),
-            backgroundColor: Colors.red,
-          ),
+    if (widget.pelicula != null && widget.pelicula!['id'] != null) {
+      final id = widget.pelicula!['id'];
+      exito = await PeliculasController.actualizarPelicula(id, body);
+    } else {
+      exito = await PeliculasController.guardarPelicula(body);
+    }
+
+    if (exito) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("✅ Película guardada con éxito"),
+          backgroundColor: Colors.green,
+        ),
+      );
+      await Future.delayed(const Duration(seconds: 2));
+      if (mounted) {
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (context) => const Peliculas()),
         );
       }
-    } catch (error) {
+    } else {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text("❌ Error de conexión: $error"),
+        const SnackBar(
+          content: Text("❌ Error al guardar película"),
           backgroundColor: Colors.red,
         ),
       );
@@ -299,12 +328,14 @@ class _ListaPeliculasState extends State<ListaPeliculas> {
         ),
         child: Column(
           children: [
-            const Padding(
-                padding: EdgeInsets.only(top: 10),
+            Padding(
+                padding: const EdgeInsets.only(top: 10),
                 child: Center(
                   child: Text(
-                    'Registrar Película',
-                    style: TextStyle(
+                    widget.pelicula != null
+                        ? 'Editar Película'
+                        : 'Registrar Película',
+                    style: const TextStyle(
                       color: Color(0xffF5F5F5),
                       fontSize: 30,
                       fontWeight: FontWeight.bold,
@@ -388,13 +419,21 @@ class _ListaPeliculasState extends State<ListaPeliculas> {
                                     ),
                                     const SizedBox(height: 5),
                                     _imagen == null
-                                        ? Container(
-                                            width: 150,
-                                            height: 200,
-                                            color: Colors.grey[300],
-                                            child: const Icon(Icons.image,
-                                                size: 100, color: Colors.grey),
-                                          )
+                                        ? (_posterUrlActual != null
+                                            ? Image.network(
+                                                _posterUrlActual!,
+                                                width: 150,
+                                                height: 200,
+                                                fit: BoxFit.contain,
+                                              )
+                                            : Container(
+                                                width: 150,
+                                                height: 200,
+                                                color: Colors.grey[300],
+                                                child: const Icon(Icons.image,
+                                                    size: 100,
+                                                    color: Colors.grey),
+                                              ))
                                         : Image.file(
                                             _imagen!,
                                             width: 150,

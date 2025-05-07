@@ -102,22 +102,13 @@ class _SeleccionBoletosState extends State<SeleccionBoletos> {
                 color: Colors.black12,
               ),
               child: ClipRRect(
-                borderRadius: BorderRadius.circular(5),
-                child: widget.poster.startsWith('data:image')
-                    ? Image.memory(
-                        const Base64Decoder().convert(
-                          widget.poster.split(',').last,
-                        ),
-                        fit: BoxFit.cover,
-                        errorBuilder: (context, error, stackTrace) {
-                          return const Icon(Icons.broken_image, size: 40);
-                        },
-                      )
-                    : Image.asset(
-                        'assets/placeholder.jpg',
-                        fit: BoxFit.cover,
-                      ),
-              ),
+                  borderRadius: BorderRadius.circular(5),
+                  child: Image.network(
+                    widget.poster,
+                    fit: BoxFit.cover,
+                    errorBuilder: (context, error, stackTrace) =>
+                        const Icon(Icons.broken_image, size: 40),
+                  )),
             ),
             const SizedBox(width: 10),
             Expanded(

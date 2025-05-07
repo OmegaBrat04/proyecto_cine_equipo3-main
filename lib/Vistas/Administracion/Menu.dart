@@ -1,5 +1,7 @@
 import 'package:eva_icons_flutter/eva_icons_flutter.dart';
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
+import 'package:proyecto_cine_equipo3/Controlador/Administracion/funciones_controller.dart';
 import 'package:proyecto_cine_equipo3/Vistas/Administracion/Funciones.dart';
 import 'package:proyecto_cine_equipo3/Vistas/Administracion/Peliculas.dart';
 import 'package:proyecto_cine_equipo3/Vistas/Administracion/Consumibles.dart';
@@ -10,7 +12,9 @@ import 'package:proyecto_cine_equipo3/Vistas/Administracion/ListaIntermedio.dart
 import 'package:proyecto_cine_equipo3/Vistas/Administracion/ListaProductos.dart';
 import 'package:proyecto_cine_equipo3/Vistas/Administracion/Proveedores.dart';
 import 'package:proyecto_cine_equipo3/Vistas/Administracion/Recetas.dart';
+import 'package:proyecto_cine_equipo3/Vistas/Administracion/TiposBoletos.dart';
 import 'package:proyecto_cine_equipo3/Vistas/Administracion/Usuarios.dart';
+import 'package:proyecto_cine_equipo3/Modelo/ModeloFunciones.dart';
 
 class Menu extends StatefulWidget {
   const Menu({
@@ -22,6 +26,40 @@ class Menu extends StatefulWidget {
 }
 
 class _MenuState extends State<Menu> {
+  List<FuncionLista> funcionesHoy = [];
+
+  @override
+  void initState() {
+    super.initState();
+    cargarFuncionesHoy();
+  }
+
+  void cargarFuncionesHoy() async {
+    final todas = await ControladorFun.obtenerFuncionesVigentes();
+    final ahora = DateTime.now();
+
+    final funcionesFiltradas = todas.where((f) {
+      final fecha = DateTime.parse(f.fecha);
+      final hora = DateTime.parse(f.horario);
+
+      final fechaYHora = DateTime(
+        fecha.year,
+        fecha.month,
+        fecha.day,
+        hora.hour,
+        hora.minute,
+      );
+      return fecha.year == ahora.year &&
+          fecha.month == ahora.month &&
+          fecha.day == ahora.day &&
+          fechaYHora.isAfter(ahora);
+    }).toList();
+
+    setState(() {
+      funcionesHoy = funcionesFiltradas;
+    });
+  }
+
   Widget _buildSidebarButton({
     required IconData icon,
     required String label,
@@ -297,7 +335,8 @@ class _MenuState extends State<Menu> {
                                 Navigator.push(
                                   context,
                                   MaterialPageRoute(
-                                      builder: (context) => const ListaFunciones()),
+                                      builder: (context) =>
+                                          const ListaFunciones()),
                                 );
                               },
                             ),
@@ -305,10 +344,11 @@ class _MenuState extends State<Menu> {
                               icon: Icons.local_movies,
                               label: 'Películas',
                               onPressed: () {
-                               Navigator.push(
+                                Navigator.push(
                                   context,
                                   MaterialPageRoute(
-                                      builder: (context) => const listaPeliculas()),
+                                      builder: (context) =>
+                                          const listaPeliculas()),
                                 );
                               },
                             ),
@@ -316,7 +356,11 @@ class _MenuState extends State<Menu> {
                               icon: Icons.confirmation_number,
                               label: 'Boletos',
                               onPressed: () {
-                                
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                      builder: (context) => const TiposBoletos()),
+                                );
                               },
                             ),
                           ],
@@ -402,34 +446,41 @@ class _MenuState extends State<Menu> {
                       Expanded(
                         child: SingleChildScrollView(
                           scrollDirection: Axis.horizontal,
-                          child: DataTable(
-                            border: TableBorder.all(color: Colors.grey),
-                            headingTextStyle:
-                                const TextStyle(color: Colors.white),
-                            dataTextStyle: const TextStyle(color: Colors.white),
-                            columns: const <DataColumn>[
-                              DataColumn(label: Text('Titulo')),
-                              DataColumn(label: Text('Horario')),
-                              DataColumn(label: Text('Fecha')),
-                              DataColumn(label: Text('Sala')),
-                              DataColumn(label: Text('Tipo')),
-                              DataColumn(label: Text('Idioma')),
-                              DataColumn(label: Text('Estado')),
-                            ],
-                            rows: <DataRow>[
-                              DataRow(
-                                cells: <DataCell>[
-                                  DataCell(Text('Jurassic World: Rebirth')),
-                                  DataCell(Text('13:20')),
-                                  DataCell(Text('06-03-2025')),
-                                  DataCell(Text('8')),
-                                  DataCell(Text('Tradicional')),
-                                  DataCell(Text('Español')),
-                                  DataCell(Text('Finalizado')),
-                                ],
-                              ),
-                            ],
-                          ),
+                          child: funcionesHoy.isEmpty
+                              ? const Text(
+                                  'No hay funciones programadas para el resto del día',
+                                  style: TextStyle(color: Colors.white))
+                              : DataTable(
+                                  border: TableBorder.all(color: Colors.grey),
+                                  headingTextStyle:
+                                      const TextStyle(color: Colors.white),
+                                  dataTextStyle:
+                                      const TextStyle(color: Colors.white),
+                                  columns: const <DataColumn>[
+                                    DataColumn(label: Text('Título')),
+                                    DataColumn(label: Text('Horario')),
+                                    DataColumn(label: Text('Fecha')),
+                                    DataColumn(label: Text('Sala')),
+                                    DataColumn(label: Text('Tipo')),
+                                    DataColumn(label: Text('Idioma')),
+                                  ],
+                                  rows: funcionesHoy.map<DataRow>((f) {
+                                    return DataRow(cells: [
+                                      DataCell(Text(f.titulo)),
+                                      DataCell(Text(
+                                        DateFormat('HH:mm')
+                                            .format(DateTime.parse(f.horario)),
+                                      )),
+                                      DataCell(Text(
+                                        DateFormat('dd/MM/yyyy')
+                                            .format(DateTime.parse(f.fecha)),
+                                      )),
+                                      DataCell(Text(f.sala.toString())),
+                                      DataCell(Text(f.tipoSala)),
+                                      DataCell(Text(f.idioma)),
+                                    ]);
+                                  }).toList(),
+                                ),
                         ),
                       ),
                     ],

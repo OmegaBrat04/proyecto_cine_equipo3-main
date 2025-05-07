@@ -27,7 +27,7 @@ class PeliculaModel {
   }
 
   Map<String, dynamic> toJson(
-      String sinopsis, String subtitulos, String? poster) {
+      String sinopsis, bool subtitulos, String? poster) {
     return {
       'titulo': titulo,
       'director': director,

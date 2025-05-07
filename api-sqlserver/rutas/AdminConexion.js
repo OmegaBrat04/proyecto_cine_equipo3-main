@@ -234,7 +234,8 @@ router.post('/addMovie', async (req, res) => {
     request.input('director', sql.NVarChar, director);
     request.input('duracion', sql.NVarChar, duracion);
     request.input('idioma', sql.NVarChar, idioma);
-    request.input('subtitulos', sql.Bit, subtitulos === "Si" ? 1 : 0);
+    request.input('subtitulos', sql.Bit, subtitulos ? 1 : 0);
+
     request.input('genero', sql.NVarChar, genero);
     request.input('clasificacion', sql.NVarChar, clasificacion);
     request.input('sinopsis', sql.Text, sinopsis);
@@ -308,43 +309,101 @@ router.delete('/deleteMovie/:id', async (req, res) => {
 });
 
 
+router.put('/updateMovie/:id', async (req, res) => {
+  const id = parseInt(req.params.id, 10);
+  const {
+    titulo,
+    director,
+    duracion,
+    idioma,
+    subtitulos,
+    genero,
+    clasificacion,
+    sinopsis,
+    poster
+  } = req.body;
+
+  if (!titulo || !director || !duracion || !idioma || !genero || !clasificacion || !sinopsis) {
+    return res.status(400).json({ message: "Todos los campos son obligatorios." });
+  }
+
+  try {
+    const request = new sql.Request();
+    request.input('id', sql.Int, id);
+    request.input('titulo', sql.NVarChar, titulo);
+    request.input('director', sql.NVarChar, director);
+    request.input('duracion', sql.NVarChar, duracion);
+    request.input('idioma', sql.NVarChar, idioma);
+    request.input('subtitulos', sql.Bit, subtitulos ? 1 : 0);
+
+    request.input('genero', sql.NVarChar, genero);
+    request.input('clasificacion', sql.NVarChar, clasificacion);
+    request.input('sinopsis', sql.Text, sinopsis);
+    request.input('poster', sql.NVarChar, poster);
+
+    const result = await request.query(`
+      UPDATE Pelicula
+      SET
+        titulo = @titulo,
+        director = @director,
+        duracion = @duracion,
+        idioma = @idioma,
+        subtitulos = @subtitulos,
+        genero = @genero,
+        clasificacion = @clasificacion,
+        sinopsis = @sinopsis,
+        poster = @poster
+      WHERE ID_Pelicula = @id
+    `);
+
+    if (result.rowsAffected[0] > 0) {
+      res.status(200).json({ message: "Película actualizada correctamente" });
+    } else {
+      res.status(404).json({ message: "Película no encontrada" });
+    }
+  } catch (error) {
+    console.error("❌ Error al actualizar película:", error);
+    res.status(500).json({ message: "Error al actualizar película" });
+  }
+});
+
+
+
 // -------------------------------- RUTAS DE FUNCIONES -----------------------------------
 
 router.post('/addFunction', async (req, res) => {
   try {
-    let { titulo, horario, fecha, sala, tipo_sala, idioma, poster } = req.body;
+    let { id_pelicula, horario, fecha, sala, tipo_sala, idioma } = req.body;
 
-    console.log("📥 Datos recibidos:", { titulo, horario, fecha, sala, tipo_sala, idioma, poster });
+    console.log("📥 Datos recibidos:", { id_pelicula, horario, fecha, sala, tipo_sala, idioma });
 
-    if (!titulo || !horario || !fecha || !sala || !tipo_sala || !idioma) {
+    if (!id_pelicula || !horario || !fecha || !sala || !tipo_sala || !idioma) {
       return res.status(400).json({ message: "Todos los campos son obligatorios." });
     }
 
-    // Validar y formatear horario
+    // Validar formato de hora
     const horarioValido = /^([01]?\d|2[0-3]):[0-5]\d:[0-5]\d$/.test(horario);
     if (!horarioValido) {
       console.log("⛔ Error: Formato de horario incorrecto →", horario);
       return res.status(400).json({ message: "Formato de horario inválido. Usa HH:mm:ss" });
     }
 
-    console.log("⏳ Horario formateado para SQL:", horario);
-
     const request = new sql.Request();
-    request.input('titulo', sql.NVarChar, titulo);
-    request.input('horario', sql.NVarChar, horario); // Enviamos como string válido
+    request.input('id_pelicula', sql.Int, id_pelicula);
+    request.input('horario', sql.NVarChar, horario);
     request.input('fecha', sql.Date, fecha);
     request.input('sala', sql.Int, sala);
     request.input('tipo_sala', sql.NVarChar, tipo_sala);
     request.input('idioma', sql.NVarChar, idioma);
-    request.input('poster', sql.NVarChar, poster || null);
 
     await request.query(`
-      INSERT INTO Funciones (titulo, horario, fecha, sala, tipo_sala, idioma, poster)
-      VALUES (@titulo, @horario, @fecha, @sala, @tipo_sala, @idioma, @poster)
+      INSERT INTO Funciones (id_pelicula, horario, fecha, sala, tipo_sala, idioma)
+      VALUES (@id_pelicula, @horario, @fecha, @sala, @tipo_sala, @idioma)
     `);
 
-    console.log("✅ Función agregada con éxito:", titulo);
+    console.log("✅ Función agregada con éxito");
     res.status(201).json({ message: "✅ Función agregada con éxito" });
+
 
   } catch (error) {
     console.error("❌ Error al agregar función:", error);
@@ -391,6 +450,91 @@ router.delete('/deleteFunction/:id', async (req, res) => {
     res.status(500).json({ message: "Error al eliminar función" });
   }
 });
+
+router.post('/verificarFuncionExistente', async (req, res) => {
+  try {
+    const { horario, fecha, sala } = req.body;
+
+    const request = new sql.Request();
+    request.input('horario', sql.NVarChar, horario);
+    request.input('fecha', sql.Date, fecha);
+    request.input('sala', sql.Int, sala);
+
+    const result = await request.query(`
+      SELECT COUNT(*) AS total FROM Funciones 
+      WHERE fecha = @fecha AND horario = @horario AND sala = @sala
+    `);
+
+    const existe = result.recordset[0].total > 0;
+    res.status(200).json({ existe });
+  } catch (error) {
+    console.error('❌ Error al verificar función existente:', error);
+    res.status(500).json({ message: 'Error interno del servidor' });
+  }
+});
+
+
+router.get('/getFuncionesVigentes', async (req, res) => {
+  try {
+    const request = new sql.Request();
+
+    const result = await request.query(`
+      SELECT f.id, f.horario, f.fecha, f.sala, f.tipo_sala, f.idioma,
+             p.Titulo AS titulo
+      FROM Funciones f
+      JOIN Pelicula p ON f.id_pelicula = p.ID_Pelicula
+      WHERE 
+        (
+          f.fecha > CAST(GETDATE() AS DATE)
+          OR (f.fecha = CAST(GETDATE() AS DATE) AND f.horario > FORMAT(GETDATE(), 'HH:mm:ss'))
+        )
+      ORDER BY f.fecha ASC, f.horario ASC
+    `);
+
+    res.status(200).json(result.recordset);
+  } catch (error) {
+    console.error("❌ Error al obtener funciones vigentes:", error);
+    res.status(500).json({ message: "Error al obtener funciones vigentes" });
+  }
+});
+
+
+router.put('/updateFunction/:id', async (req, res) => {
+  const { id } = req.params;
+  const { id_pelicula, horario, fecha, sala, tipo_sala, idioma } = req.body;
+
+  try {
+    const request = new sql.Request();
+    request.input('id', sql.Int, id);
+    request.input('id_pelicula', sql.Int, id_pelicula);
+    request.input('horario', sql.NVarChar, horario);
+    request.input('fecha', sql.Date, fecha);
+    request.input('sala', sql.Int, sala);
+    request.input('tipo_sala', sql.NVarChar, tipo_sala);
+    request.input('idioma', sql.NVarChar, idioma);
+
+    const result = await request.query(`
+      UPDATE Funciones
+      SET id_pelicula = @id_pelicula,
+          horario = @horario,
+          fecha = @fecha,
+          sala = @sala,
+          tipo_sala = @tipo_sala,
+          idioma = @idioma
+      WHERE id = @id
+    `);
+
+    if (result.rowsAffected[0] > 0) {
+      res.status(200).json({ message: '✅ Función actualizada con éxito' });
+    } else {
+      res.status(404).json({ message: 'Función no encontrada' });
+    }
+  } catch (error) {
+    console.error('❌ Error al actualizar función:', error);
+    res.status(500).json({ message: 'Error al actualizar función' });
+  }
+});
+
 
 
 // -------------------------------- RUTAS DE PROVEEDORES Y CONSUMIBLES -----------------------------------
@@ -880,6 +1024,135 @@ router.get('/getAllProductos', async (req, res) => {
   }
 });
 
+// --------------------------- RUTAS DE TIPOS DE BOLETOS ---------------------------
+
+// Agregar boleto
+router.post('/addBoleto', async (req, res) => {
+  try {
+    const { descripcion, precio_2d, precio_3d, fecha_especial } = req.body;
+
+    const request = new sql.Request();
+    request.input('descripcion', sql.NVarChar, descripcion);
+    request.input('precio_2d', sql.Float, precio_2d);
+    request.input('precio_3d', sql.Float, precio_3d);
+    request.input('fecha_especial', sql.Date, fecha_especial || null);
+
+    await request.query(`
+      INSERT INTO TiposBoletos (descripcion, precio_2d, precio_3d, fecha_especial)
+      VALUES (@descripcion, @precio_2d, @precio_3d, @fecha_especial)
+    `);
+
+    res.status(201).json({ message: '✅ Boleto agregado correctamente' });
+  } catch (error) {
+    console.error('❌ Error al agregar boleto:', error);
+    res.status(500).json({ message: 'Error al agregar boleto' });
+  }
+});
+
+// Obtener boletos
+router.get('/getBoletos', async (req, res) => {
+  try {
+    const result = await new sql.Request().query('SELECT * FROM TiposBoletos ORDER BY id_boleto DESC');
+    res.status(200).json(result.recordset);
+  } catch (error) {
+    console.error('❌ Error al obtener boletos:', error);
+    res.status(500).json({ message: 'Error al obtener boletos' });
+  }
+});
+
+// Eliminar boleto
+router.delete('/deleteBoleto/:id', async (req, res) => {
+  try {
+    const id = parseInt(req.params.id);
+    const request = new sql.Request();
+    request.input('id', sql.Int, id);
+    await request.query('DELETE FROM TiposBoletos WHERE id_boleto = @id');
+    res.status(200).json({ message: '✅ Boleto eliminado con éxito' });
+  } catch (error) {
+    console.error('❌ Error al eliminar boleto:', error);
+    res.status(500).json({ message: 'Error al eliminar boleto' });
+  }
+});
+
+// --------------------------- RUTAS DE TIPOS DE BOLETOS ---------------------------
+
+// Agregar boleto
+router.post('/addBoleto', async (req, res) => {
+  try {
+    const { nombre, precio_2D, precio_3D, fecha_especial } = req.body;
+
+    const request = new sql.Request();
+    request.input('nombre', sql.NVarChar, nombre);
+    request.input('precio_2D', sql.Float, precio_2D);
+    request.input('precio_3D', sql.Float, precio_3D);
+    request.input('fecha_especial', sql.Date, fecha_especial || null);
+
+    await request.query(`
+      INSERT INTO TiposBoletos (nombre, precio_2D, precio_3D, fecha_especial)
+      VALUES (@nombre, @precio_2D, @precio_3D, @fecha_especial)
+    `);
+
+    res.status(201).json({ message: '✅ Boleto agregado correctamente' });
+  } catch (error) {
+    console.error('❌ Error al agregar boleto:', error);
+    res.status(500).json({ message: 'Error al agregar boleto' });
+  }
+});
+
+// Obtener boletos
+router.get('/getBoletos', async (req, res) => {
+  try {
+    const result = await new sql.Request().query('SELECT * FROM TiposBoletos ORDER BY id_boleto DESC');
+    res.status(200).json(result.recordset);
+  } catch (error) {
+    console.error('❌ Error al obtener boletos:', error);
+    res.status(500).json({ message: 'Error al obtener boletos' });
+  }
+});
+
+// Eliminar boleto
+router.delete('/deleteBoleto/:id', async (req, res) => {
+  try {
+    const id = parseInt(req.params.id);
+    const request = new sql.Request();
+    request.input('id', sql.Int, id);
+    await request.query('DELETE FROM TiposBoletos WHERE id_boleto = @id');
+    res.status(200).json({ message: '✅ Boleto eliminado con éxito' });
+  } catch (error) {
+    console.error('❌ Error al eliminar boleto:', error);
+    res.status(500).json({ message: 'Error al eliminar boleto' });
+  }
+});
+
+
+// Actualizar boleto
+router.put('/updateBoleto/:id', async (req, res) => {
+  try {
+    const id = parseInt(req.params.id);
+    const { nombre, precio_2D, precio_3D, fecha_especial } = req.body;
+
+    const request = new sql.Request();
+    request.input('id', sql.Int, id);
+    request.input('nombre', sql.NVarChar, nombre);
+    request.input('precio_2D', sql.Float, precio_2D);
+    request.input('precio_3D', sql.Float, precio_3D);
+    request.input('fecha_especial', sql.Date, fecha_especial || null);
+
+    await request.query(`
+      UPDATE TiposBoletos
+      SET nombre = @nombre,
+          precio_2D = @precio_2D,
+          precio_3D = @precio_3D,
+          fecha_especial = @fecha_especial
+      WHERE id_boleto = @id
+    `);
+
+    res.status(200).json({ message: '✅ Boleto actualizado correctamente' });
+  } catch (error) {
+    console.error('❌ Error al actualizar boleto:', error);
+    res.status(500).json({ message: 'Error al actualizar boleto' });
+  }
+});
 
 
 
