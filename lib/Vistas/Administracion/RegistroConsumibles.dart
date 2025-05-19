@@ -475,6 +475,21 @@ class _RegistroConsumiblesViewState extends State<RegistroConsumiblesView> {
                           width: 200,
                           child: ElevatedButton(
                             onPressed: () async {
+                              // Validación de campos obligatorios
+                              if (nombreController.text.trim().isEmpty ||
+                                  proveedorController.text.trim().isEmpty ||
+                                  stockController.text.trim().isEmpty ||
+                                  precioUnitarioController.text
+                                      .trim()
+                                      .isEmpty) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(
+                                      content: Text(
+                                          '❗Completa todos los campos obligatorios')),
+                                );
+                                return;
+                              }
+
                               String? imagePath;
 
                               if (_imagen != null) {
@@ -510,6 +525,7 @@ class _RegistroConsumiblesViewState extends State<RegistroConsumiblesView> {
                                         precioUnitarioController.text.trim()) ??
                                     0,
                                 imagen: imagePath,
+                                unidad: dropdownValue,
                               );
 
                               final exito = await ConsumibleController()
@@ -527,6 +543,12 @@ class _RegistroConsumiblesViewState extends State<RegistroConsumiblesView> {
                                           : '✅ Consumible agregado')),
                                 );
                                 Navigator.pop(context);
+                              } else if (context.mounted) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(
+                                      content: Text(
+                                          '❌ Error al guardar consumible')),
+                                );
                               }
                             },
                             style: ElevatedButton.styleFrom(

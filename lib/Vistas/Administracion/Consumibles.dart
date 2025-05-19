@@ -219,16 +219,18 @@ class _ListaConsumiblesState extends State<ListaConsumibles> {
                             children: [
                               IconButton(
                                 icon: Icon(Icons.edit),
-                                onPressed: () {
-                                  Navigator.push(
+                                onPressed: () async {
+                                  await Navigator.push(
                                     context,
                                     MaterialPageRoute(
-                                        builder: (context) =>
-                                            RegistroConsumiblesView(
-                                                consumibleExistente:
-                                                    Consumible.fromJson(
-                                                        consumible))),
+                                      builder: (context) =>
+                                          RegistroConsumiblesView(
+                                        consumibleExistente:
+                                            Consumible.fromJson(consumible),
+                                      ),
+                                    ),
                                   );
+                                  obtenerConsumibles();
                                 },
                               ),
                               IconButton(
@@ -295,12 +297,14 @@ class _ListaConsumiblesState extends State<ListaConsumibles> {
               child: Align(
                 alignment: Alignment.bottomRight,
                 child: ElevatedButton(
-                  onPressed: () {
-                    Navigator.push(
+                  onPressed: () async {
+                    await Navigator.push(
                       context,
                       MaterialPageRoute(
-                          builder: (context) => const Registroconsumibles()),
+                        builder: (context) => const Registroconsumibles(),
+                      ),
                     );
+                    obtenerConsumibles();
                   },
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xff14AE5C),

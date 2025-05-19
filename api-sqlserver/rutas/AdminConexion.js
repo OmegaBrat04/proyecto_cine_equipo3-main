@@ -664,7 +664,7 @@ router.put('/updateConsumible/:nombre', async (req, res) => {
 router.get('/getConsumibles', async (req, res) => {
   try {
     const request = new sql.Request();
-    const result = await request.query('SELECT nombre FROM Consumibles');
+    const result = await request.query('SELECT nombre, unidad FROM Consumibles');
     res.status(200).json(result.recordset);
   } catch (error) {
     console.error('Error al obtener consumibles:', error);
@@ -736,9 +736,9 @@ router.delete('/deleteProveedor/:nombre', async (req, res) => {
 
 router.post('/addIntermedio', async (req, res) => {
   try {
-    const { nombre, imagen, cantidad_producida, unidad, costo_total_estimado, consumibles_usados } = req.body;
+    const { nombre, imagen, cantidad_producida, unidad, costo_total_estimado, receta_id } = req.body;
 
-    if (!nombre || !cantidad_producida || !unidad || !costo_total_estimado || !consumibles_usados) {
+    if (!nombre || !cantidad_producida || !unidad || !costo_total_estimado || !receta_id) {
       return res.status(400).json({ message: 'Todos los campos son obligatorios.' });
     }
 
@@ -758,29 +758,14 @@ router.post('/addIntermedio', async (req, res) => {
 
     const intermedioId = result.recordset[0].id;
 
-    for (const c of consumibles_usados) {
-      const reqInsert = new sql.Request();
-      reqInsert.input('intermedio_id', sql.Int, intermedioId);
-      reqInsert.input('nombre', sql.NVarChar, c.nombre);
-      reqInsert.input('cantidad_usada', sql.Float, c.cantidad_usada);
-      await reqInsert.query(`
-        INSERT INTO Intermedios_Consumibles (intermedio_id, nombre, cantidad_usada)
-        VALUES (@intermedio_id, @nombre, @cantidad_usada)
+    // Relacionar con la receta
+    await new sql.Request()
+      .input('intermedio_id', sql.Int, intermedioId)
+      .input('receta_id', sql.Int, receta_id)
+      .query(`
+        INSERT INTO Intermedios_Recetas (intermedio_id, receta_id)
+        VALUES (@intermedio_id, @receta_id)
       `);
-
-      const reqUpdate = new sql.Request();
-      reqUpdate.input('nombre', sql.NVarChar, c.nombre);
-      reqUpdate.input('cantidad_usada', sql.Float, c.cantidad_usada);
-      await reqUpdate.query(`
-        UPDATE Consumibles
-        SET stock = stock - @cantidad_usada
-        WHERE nombre = @nombre
-      `);
-    }
-
-
-
-
 
     res.status(201).json({ message: '✅ Intermedio guardado exitosamente' });
   } catch (error) {
@@ -800,23 +785,31 @@ router.get('/getIntermedios', async (req, res) => {
         I.cantidad_producida,
         I.unidad,
         I.costo_total_estimado,
-        (
-          SELECT 
-            nombre, 
-            cantidad_usada 
-          FROM Intermedios_Consumibles IC 
-          WHERE IC.intermedio_id = I.id 
-          FOR JSON PATH
-        ) AS consumibles
+        R.ID_Receta AS receta_id,
+        R.Nombre AS receta_nombre
       FROM Intermedios I
+      JOIN Intermedios_Recetas IR ON IR.intermedio_id = I.id
+      JOIN Receta R ON R.ID_Receta = IR.receta_id
       ORDER BY I.id DESC
     `);
 
-    // Parsear los campos JSON de consumibles
-    const intermedios = result.recordset.map(row => ({
-      ...row,
-      consumibles: row.consumibles ? JSON.parse(row.consumibles) : []
-    }));
+    // Para cada intermedio, trae los consumibles de la receta asociada
+    const intermedios = [];
+    for (const row of result.recordset) {
+      const consRes = await new sql.Request()
+        .input('receta_id', sql.Int, row.receta_id)
+        .query(`
+          SELECT c.nombre, ri.Cantidad, ri.Unidad
+          FROM RecetaIngrediente ri
+          JOIN Consumibles c ON c.id = ri.ID_Consumible
+          WHERE ri.ID_Receta = @receta_id
+        `);
+
+      intermedios.push({
+        ...row,
+        consumibles: consRes.recordset
+      });
+    }
 
     res.status(200).json(intermedios);
   } catch (error) {
@@ -877,6 +870,38 @@ FROM Consumibles
   }
 });
 
+router.put('/updateIntermedio/:id', async (req, res) => {
+  const id = parseInt(req.params.id, 10);
+  const { cantidad_producida } = req.body;
+  if (isNaN(id) || typeof cantidad_producida !== 'number') {
+    return res.status(400).json({ message: 'Datos inválidos' });
+  }
+  try {
+    const pool = await sql.connect(dbConfig);
+
+    // Obtener el intermedio actual
+    const result = await pool.request()
+      .input('id', sql.Int, id)
+      .query('SELECT cantidad_producida, costo_total_estimado FROM Intermedios WHERE id = @id');
+    if (result.recordset.length === 0) {
+      return res.status(404).json({ message: 'Intermedio no encontrado' });
+    }
+    const actual = result.recordset[0];
+    // Calcula el nuevo costo proporcionalmente
+    const factor = cantidad_producida / actual.cantidad_producida;
+    const nuevoCosto = actual.costo_total_estimado * factor;
+
+    await pool.request()
+      .input('id', sql.Int, id)
+      .input('cantidad', sql.Float, cantidad_producida)
+      .input('costo', sql.Float, nuevoCosto)
+      .query('UPDATE Intermedios SET cantidad_producida = @cantidad, costo_total_estimado = @costo WHERE id = @id');
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ message: 'Error al actualizar intermedio' });
+  }
+});
+
 
 router.get('/getAllProveedores', async (req, res) => {
   try {
@@ -912,50 +937,231 @@ router.use((err, req, res, next) => {
 
 //--------------------------------- RUTAS DE RECETAS -----------------------------------
 
+// ...existing code...
 router.post('/addReceta', async (req, res) => {
-  const { nombre, porcion, unidad, consumibles } = req.body;
-
-  if (!nombre || !porcion || !unidad || !consumibles || !Array.isArray(consumibles)) {
-    return res.status(400).json({ mensaje: 'Datos incompletos o incorrectos' });
+  const { nombre, porcion, unidadPorcion, ingredientes } = req.body;
+  if (!nombre || !porcion || !unidadPorcion || !Array.isArray(ingredientes) || ingredientes.length === 0) {
+    return res.status(400).json({ message: 'Faltan datos de receta, porción o ingredientes' });
   }
 
-  const transaction = new sql.Transaction();
-
+  const pool = await sql.connect(dbConfig);
+  const transaction = new sql.Transaction(pool);
   try {
     await transaction.begin();
 
-    const requestReceta = new sql.Request(transaction);
-    requestReceta.input('nombre', sql.NVarChar, nombre);
-    requestReceta.input('porcion', sql.Float, porcion);
-    requestReceta.input('unidad', sql.NVarChar, unidad);
+    // 1) Insertar receta
+    const insertRec = await transaction.request()
+      .input('nombre', sql.NVarChar, nombre)
+      .input('porcion', sql.Decimal(10, 2), porcion)
+      .input('unidadPorcion', sql.NVarChar, unidadPorcion)
+      .query(`
+        INSERT INTO Receta (Nombre, Porcion, UnidadPorcion)
+        OUTPUT INSERTED.ID_Receta
+        VALUES (@nombre, @porcion, @unidadPorcion)
+      `);
+    const newId = insertRec.recordset[0].ID_Receta;
 
-    const resultReceta = await requestReceta.query(
-      'INSERT INTO Recetas (nombre, porcion, unidad) OUTPUT INSERTED.id VALUES (@nombre, @porcion, @unidad)'
-    );
-
-    const recetaId = resultReceta.recordset[0].id;
-
-    for (const consumible of consumibles) {
-      const requestConsumible = new sql.Request(transaction);
-      requestConsumible.input('receta_id', sql.Int, recetaId);
-      requestConsumible.input('consumible_id', sql.Int, consumible.id);
-      requestConsumible.input('cantidad_usada', sql.Float, consumible.cantidad);
-
-      await requestConsumible.query(
-        'INSERT INTO Recetas_Consumibles (receta_id, consumible_id, cantidad_usada) VALUES (@receta_id, @consumible_id, @cantidad_usada)'
-      );
+    // 2) Insertar cada ingrediente
+    for (let ing of ingredientes) {
+      await transaction.request()
+        .input('rid', sql.Int, newId)
+        .input('cid', sql.Int, ing.idConsumible)
+        .input('cant', sql.Decimal(10, 2), ing.cantidad)
+        .input('uni', sql.NVarChar, ing.unidad)
+        .query(`
+          INSERT INTO RecetaIngrediente (ID_Receta, ID_Consumible, Cantidad, Unidad)
+          VALUES (@rid, @cid, @cant, @uni)
+        `);
     }
 
     await transaction.commit();
-    res.status(201).json({ mensaje: 'Receta creada con éxito' });
-  } catch (error) {
+    res.status(201).json({ success: true, id: newId });
+  } catch (err) {
     await transaction.rollback();
-    console.error('Error al crear la receta:', error);
-    res.status(500).json({ mensaje: 'Error interno del servidor', error });
+    console.error('❌ Error al agregar receta:', err);
+    res.status(500).json({ message: 'Error al agregar receta' });
   }
 });
 
+
+router.get('/getRecetas', async (req, res) => {
+  try {
+    const pool = await sql.connect(dbConfig);
+    // Traemos recetas
+    const recetasResult = await pool.request().query(`
+      SELECT ID_Receta, Nombre, Porcion, UnidadPorcion FROM Receta ORDER BY ID_Receta DESC
+    `);
+
+    const recetas = [];
+    for (let row of recetasResult.recordset) {
+      // Para cada receta, obtenemos sus ingredientes
+      const ingrRes = await pool.request()
+        .input('id', sql.Int, row.ID_Receta)
+        .query(`
+    SELECT ri.ID_Consumible, c.nombre AS consumible, ri.Cantidad, ri.Unidad, c.precio_unitario
+    FROM RecetaIngrediente ri
+    JOIN Consumibles c ON c.id = ri.ID_Consumible
+    WHERE ri.ID_Receta = @id
+  `);
+
+      recetas.push({
+        id: row.ID_Receta,
+        nombre: row.Nombre,
+        porcion: row.Porcion,
+        unidadPorcion: row.UnidadPorcion,
+        ingredientes: ingrRes.recordset.map(i => ({
+          idConsumible: i.ID_Consumible,
+          nombre: i.consumible,
+          cantidad: i.Cantidad,
+          unidad: i.Unidad,
+          precio_unitario: i.precio_unitario
+        }))
+      });
+    }
+
+    res.status(200).json(recetas);
+  } catch (err) {
+    console.error('❌ Error al obtener recetas:', err);
+    res.status(500).json({ message: 'Error al obtener recetas' });
+  }
+});
+
+router.put('/descontarStock/:id', async (req, res) => {
+  const id = parseInt(req.params.id, 10);
+  const { cantidad } = req.body;
+  if (isNaN(id) || typeof cantidad !== 'number') {
+    return res.status(400).json({ message: 'Datos inválidos' });
+  }
+  try {
+    const pool = await sql.connect(dbConfig);
+    await pool.request()
+      .input('id', sql.Int, id)
+      .input('cantidad', sql.Float, cantidad)
+      .query('UPDATE Consumibles SET stock = stock - @cantidad WHERE id = @id');
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ message: 'Error al descontar stock' });
+  }
+});
+
+router.delete('/deleteReceta/:id', async (req, res) => {
+  const id = parseInt(req.params.id, 10);
+  if (isNaN(id)) return res.status(400).json({ message: 'ID inválido' });
+
+  const pool = await sql.connect(dbConfig);
+  const transaction = new sql.Transaction(pool);
+  try {
+    await transaction.begin();
+
+    // 1) Borrar ingredientes
+    await transaction.request()
+      .input('rid', sql.Int, id)
+      .query('DELETE FROM RecetaIngrediente WHERE ID_Receta = @rid');
+
+    // 2) Borrar receta
+    const delRes = await transaction.request()
+      .input('rid', sql.Int, id)
+      .query('DELETE FROM Receta WHERE ID_Receta = @rid');
+
+    await transaction.commit();
+
+    if (delRes.rowsAffected[0] > 0) {
+      res.json({ success: true });
+    } else {
+      res.status(404).json({ message: 'Receta no encontrada' });
+    }
+  } catch (err) {
+    await transaction.rollback();
+    console.error('❌ Error al eliminar receta:', err);
+    res.status(500).json({ message: 'Error al eliminar receta' });
+  }
+});
+
+router.put('/updateReceta/:id', async (req, res) => {
+  const id = parseInt(req.params.id, 10);
+  const { nombre, porcion, unidadPorcion, ingredientes } = req.body;
+  if (isNaN(id) || !nombre || !porcion || !unidadPorcion || !Array.isArray(ingredientes)) {
+    return res.status(400).json({ message: 'Datos inválidos' });
+  }
+
+  const pool = await sql.connect(dbConfig);
+  const tx = new sql.Transaction(pool);
+  try {
+    await tx.begin();
+
+    // 1) Actualizar nombre y porcion
+    await tx.request()
+      .input('rid', sql.Int, id)
+      .input('nombre', sql.NVarChar, nombre)
+      .input('porcion', sql.Decimal(10, 2), porcion)
+      .input('unidadPorcion', sql.NVarChar, unidadPorcion)
+      .query('UPDATE Receta SET Nombre = @nombre, Porcion = @porcion, UnidadPorcion = @unidadPorcion WHERE ID_Receta = @rid');
+
+    // 2) Borrar viejos ingredientes
+    await tx.request()
+      .input('rid', sql.Int, id)
+      .query('DELETE FROM RecetaIngrediente WHERE ID_Receta = @rid');
+
+    // 3) Insertar nuevos
+    for (let ing of ingredientes) {
+      await tx.request()
+        .input('rid', sql.Int, id)
+        .input('cid', sql.Int, ing.idConsumible)
+        .input('cant', sql.Decimal(10, 2), ing.cantidad)
+        .input('uni', sql.NVarChar, ing.unidad)
+        .query(`
+          INSERT INTO RecetaIngrediente (ID_Receta, ID_Consumible, Cantidad, Unidad)
+          VALUES (@rid, @cid, @cant, @uni)
+        `);
+    }
+
+    await tx.commit();
+    res.json({ success: true });
+  } catch (err) {
+    await tx.rollback();
+    console.error('❌ Error al actualizar receta:', err);
+    res.status(500).json({ message: 'Error al actualizar receta' });
+  }
+});
+
+router.get('/getConsumible/:id', async (req, res) => {
+  const id = parseInt(req.params.id, 10);
+  if (isNaN(id)) {
+    return res.status(400).json({ message: 'ID inválido' });
+  }
+  try {
+    const request = new sql.Request();
+    request.input('id', sql.Int, id);
+    const result = await request.query('SELECT * FROM Consumibles WHERE id = @id');
+    if (result.recordset.length === 0) {
+      return res.status(404).json({ message: 'Consumible no encontrado' });
+    }
+    res.status(200).json(result.recordset[0]);
+  } catch (error) {
+    console.error('❌ Error al obtener consumible:', error);
+    res.status(500).json({ message: 'Error al obtener consumible' });
+  }
+});
+
+
 // ----------------------------------- RUTAS DE Productos -----------------------------------
+
+function convertirUnidad(cantidad, unidadOrigen, unidadDestino) {
+  if (!unidadOrigen || !unidadDestino) return cantidad;
+  unidadOrigen = unidadOrigen.toLowerCase();
+  unidadDestino = unidadDestino.toLowerCase();
+  if (unidadOrigen === unidadDestino) return cantidad;
+  // Peso
+  if (unidadOrigen === 'gr' && unidadDestino === 'kg') return cantidad / 1000;
+  if (unidadOrigen === 'kg' && unidadDestino === 'gr') return cantidad * 1000;
+  // Volumen
+  if (unidadOrigen === 'ml' && unidadDestino === 'l') return cantidad / 1000;
+  if (unidadOrigen === 'l' && unidadDestino === 'ml') return cantidad * 1000;
+  // Unidades
+  if (unidadOrigen === 'u' && unidadDestino === 'u') return cantidad;
+  // Incompatibles
+  return null;
+}
 
 router.post('/addProducto', async (req, res) => {
   try {
@@ -966,18 +1172,15 @@ router.post('/addProducto', async (req, res) => {
       porcionUnidad,
       stock,
       precio,
-      imagen
+      imagen,
+      insumos // [{nombre, cantidad, unidad, tipo}]
     } = req.body;
 
-    // Validación básica de campos obligatorios
-    if (
-      !nombre ||
-      !stock ||
-      !precio
-    ) {
+    if (!nombre || !stock || !precio) {
       return res.status(400).json({ message: '🌟 nombre, stock y precio son obligatorios' });
     }
 
+    // 1. Insertar el producto
     const request = new sql.Request();
     request.input('nombre', sql.NVarChar, nombre);
     request.input('tamano', sql.NVarChar, tamano || null);
@@ -988,11 +1191,44 @@ router.post('/addProducto', async (req, res) => {
     request.input('imagen', sql.NVarChar, imagen || null);
 
     await request.query(`
-        INSERT INTO Productos
-          (nombre, tamano, porcionCantidad, porcionUnidad, stock, precio, imagen)
-        VALUES
-          (@nombre, @tamano, @porcionCantidad, @porcionUnidad, @stock, @precio, @imagen)
-      `);
+      INSERT INTO Productos
+        (nombre, tamano, porcionCantidad, porcionUnidad, stock, precio, imagen)
+      VALUES
+        (@nombre, @tamano, @porcionCantidad, @porcionUnidad, @stock, @precio, @imagen)
+    `);
+
+    // 2. Descontar stock de insumos/intermedios
+    if (Array.isArray(insumos)) {
+      for (const insumo of insumos) {
+        if (insumo.tipo === 'consumible') {
+          // Buscar unidad real del consumible
+          const result = await new sql.Request()
+            .input('nombre', sql.NVarChar, insumo.nombre)
+            .query('SELECT unidad, stock FROM Consumibles WHERE nombre = @nombre');
+          if (!result.recordset.length) continue;
+          const unidadStock = result.recordset[0].unidad;
+          const cantidadDescontar = convertirUnidad(insumo.cantidad, insumo.unidad, unidadStock);
+          if (cantidadDescontar === null) continue; // Unidades incompatibles
+          await new sql.Request()
+            .input('nombre', sql.NVarChar, insumo.nombre)
+            .input('cantidad', sql.Float, cantidadDescontar)
+            .query('UPDATE Consumibles SET stock = stock - @cantidad WHERE nombre = @nombre');
+        } else if (insumo.tipo === 'intermedio') {
+          // Buscar unidad real del intermedio
+          const result = await new sql.Request()
+            .input('nombre', sql.NVarChar, insumo.nombre)
+            .query('SELECT unidad, cantidad_producida FROM Intermedios WHERE nombre = @nombre');
+          if (!result.recordset.length) continue;
+          const unidadStock = result.recordset[0].unidad;
+          const cantidadDescontar = convertirUnidad(insumo.cantidad, insumo.unidad, unidadStock);
+          if (cantidadDescontar === null) continue; // Unidades incompatibles
+          await new sql.Request()
+            .input('nombre', sql.NVarChar, insumo.nombre)
+            .input('cantidad', sql.Float, cantidadDescontar)
+            .query('UPDATE Intermedios SET cantidad_producida = cantidad_producida - @cantidad WHERE nombre = @nombre');
+        }
+      }
+    }
 
     res.status(201).json({ message: '✅ Producto agregado con éxito' });
   } catch (error) {
@@ -1001,7 +1237,6 @@ router.post('/addProducto', async (req, res) => {
   }
 });
 
-// 👉 GET para traer todos los productos
 router.get('/getAllProductos', async (req, res) => {
   try {
     const request = new sql.Request();
@@ -1009,70 +1244,83 @@ router.get('/getAllProductos', async (req, res) => {
       SELECT 
         idProducto,
         nombre,
+        tamano,
+        porcionCantidad,
+        porcionUnidad,
         stock,
         precio,
         imagen
       FROM dbo.Productos
     `);
-    // result.recordset es un array de objetos con tus filas
     res.status(200).json(result.recordset);
   } catch (error) {
-    console.error('❌ Error al obtener productos:', error);
-    res
-      .status(500)
-      .json({ message: 'Error al obtener productos', error: error.message });
+    res.status(500).json({ message: 'Error al obtener productos', error: error.message });
   }
 });
 
-// --------------------------- RUTAS DE TIPOS DE BOLETOS ---------------------------
-
-// Agregar boleto
-router.post('/addBoleto', async (req, res) => {
+router.post('/aumentarStockProducto', async (req, res) => {
+  const { idProducto, cantidadAumentar } = req.body;
+  if (!idProducto || !cantidadAumentar || cantidadAumentar <= 0) {
+    return res.status(400).json({ message: 'Datos inválidos' });
+  }
   try {
-    const { descripcion, precio_2d, precio_3d, fecha_especial } = req.body;
+    const pool = await sql.connect(dbConfig);
+    // 1. Obtener receta de insumos/intermedios usados por el producto
+    const productoRes = await pool.request()
+      .input('id', sql.Int, idProducto)
+      .query('SELECT * FROM Productos WHERE idProducto = @id');
+    if (!productoRes.recordset.length) {
+      return res.status(404).json({ message: 'Producto no encontrado' });
+    }
+    const producto = productoRes.recordset[0];
 
-    const request = new sql.Request();
-    request.input('descripcion', sql.NVarChar, descripcion);
-    request.input('precio_2d', sql.Float, precio_2d);
-    request.input('precio_3d', sql.Float, precio_3d);
-    request.input('fecha_especial', sql.Date, fecha_especial || null);
-
-    await request.query(`
-      INSERT INTO TiposBoletos (descripcion, precio_2d, precio_3d, fecha_especial)
-      VALUES (@descripcion, @precio_2d, @precio_3d, @fecha_especial)
-    `);
-
-    res.status(201).json({ message: '✅ Boleto agregado correctamente' });
+    // Aquí deberías tener una tabla que relacione producto-insumos/intermedios y cantidades usadas por unidad
+    // Por ejemplo: SELECT * FROM ProductoInsumos WHERE idProducto = @id
+    // Supongamos que tienes esa tabla:
+    const insumosRes = await pool.request()
+      .input('id', sql.Int, idProducto)
+      .query('SELECT nombre, cantidad, unidad, tipo FROM ProductoInsumos WHERE idProducto = @id');
+    for (const insumo of insumosRes.recordset) {
+      const cantidadTotal = insumo.cantidad * cantidadAumentar;
+      // Descontar del stock/intermedio igual que en addProducto
+      if (insumo.tipo === 'consumible') {
+        const result = await pool.request()
+          .input('nombre', sql.NVarChar, insumo.nombre)
+          .query('SELECT unidad, stock FROM Consumibles WHERE nombre = @nombre');
+        if (!result.recordset.length) continue;
+        const unidadStock = result.recordset[0].unidad;
+        const cantidadDescontar = convertirUnidad(cantidadTotal, insumo.unidad, unidadStock);
+        if (cantidadDescontar === null) continue;
+        await pool.request()
+          .input('nombre', sql.NVarChar, insumo.nombre)
+          .input('cantidad', sql.Float, cantidadDescontar)
+          .query('UPDATE Consumibles SET stock = stock - @cantidad WHERE nombre = @nombre');
+      } else if (insumo.tipo === 'intermedio') {
+        const result = await pool.request()
+          .input('nombre', sql.NVarChar, insumo.nombre)
+          .query('SELECT unidad, cantidad_producida FROM Intermedios WHERE nombre = @nombre');
+        if (!result.recordset.length) continue;
+        const unidadStock = result.recordset[0].unidad;
+        const cantidadDescontar = convertirUnidad(cantidadTotal, insumo.unidad, unidadStock);
+        if (cantidadDescontar === null) continue;
+        await pool.request()
+          .input('nombre', sql.NVarChar, insumo.nombre)
+          .input('cantidad', sql.Float, cantidadDescontar)
+          .query('UPDATE Intermedios SET cantidad_producida = cantidad_producida - @cantidad WHERE nombre = @nombre');
+      }
+    }
+    // 2. Actualizar el stock del producto
+    await pool.request()
+      .input('id', sql.Int, idProducto)
+      .input('cantidad', sql.Int, cantidadAumentar)
+      .query('UPDATE Productos SET stock = stock + @cantidad WHERE idProducto = @id');
+    res.json({ success: true });
   } catch (error) {
-    console.error('❌ Error al agregar boleto:', error);
-    res.status(500).json({ message: 'Error al agregar boleto' });
+    res.status(500).json({ message: 'Error al aumentar stock', error: error.message });
   }
 });
 
-// Obtener boletos
-router.get('/getBoletos', async (req, res) => {
-  try {
-    const result = await new sql.Request().query('SELECT * FROM TiposBoletos ORDER BY id_boleto DESC');
-    res.status(200).json(result.recordset);
-  } catch (error) {
-    console.error('❌ Error al obtener boletos:', error);
-    res.status(500).json({ message: 'Error al obtener boletos' });
-  }
-});
 
-// Eliminar boleto
-router.delete('/deleteBoleto/:id', async (req, res) => {
-  try {
-    const id = parseInt(req.params.id);
-    const request = new sql.Request();
-    request.input('id', sql.Int, id);
-    await request.query('DELETE FROM TiposBoletos WHERE id_boleto = @id');
-    res.status(200).json({ message: '✅ Boleto eliminado con éxito' });
-  } catch (error) {
-    console.error('❌ Error al eliminar boleto:', error);
-    res.status(500).json({ message: 'Error al eliminar boleto' });
-  }
-});
 
 // --------------------------- RUTAS DE TIPOS DE BOLETOS ---------------------------
 
@@ -1151,6 +1399,124 @@ router.put('/updateBoleto/:id', async (req, res) => {
   } catch (error) {
     console.error('❌ Error al actualizar boleto:', error);
     res.status(500).json({ message: 'Error al actualizar boleto' });
+  }
+});
+
+//-----------------------------------------RUTAS DE COMBOS------------------------------------------------
+
+router.post('/addCombo', async (req, res) => {
+  const { nombre, precio, imagen, productos } = req.body;
+  // productos: [{ idProducto, cantidad }]
+  if (!nombre || !precio || !Array.isArray(productos) || productos.length === 0) {
+    return res.status(400).json({ message: 'Faltan datos del combo o productos' });
+  }
+  try {
+    const pool = await sql.connect(dbConfig);
+    // 1. Insertar combo
+    const result = await pool.request()
+      .input('nombre', sql.NVarChar, nombre)
+      .input('precio', sql.Decimal(10, 2), precio)
+      .input('imagen', sql.NVarChar, imagen || null)
+      .query(`
+        INSERT INTO Combos (nombre, precio, imagen)
+        OUTPUT INSERTED.idCombo
+        VALUES (@nombre, @precio, @imagen)
+      `);
+    const idCombo = result.recordset[0].idCombo;
+    // 2. Insertar productos del combo
+    for (const p of productos) {
+      await pool.request()
+        .input('idCombo', sql.Int, idCombo)
+        .input('idProducto', sql.Int, p.idProducto)
+        .input('cantidad', sql.Int, p.cantidad)
+        .query(`
+          INSERT INTO ComboProductos (idCombo, idProducto, cantidad)
+          VALUES (@idCombo, @idProducto, @cantidad)
+        `);
+    }
+    res.status(201).json({ message: 'Combo registrado correctamente' });
+  } catch (error) {
+    console.error('❌ Error al registrar combo:', error);
+    res.status(500).json({ message: 'Error al registrar combo' });
+  }
+});
+
+// AdminConexion.js
+router.get('/getAllCombos', async (req, res) => {
+  try {
+    const request = new sql.Request();
+    const combosResult = await request.query(`
+      SELECT idCombo, nombre, precio, imagen
+      FROM Combos
+      ORDER BY idCombo DESC
+    `);
+
+    const combos = combosResult.recordset;
+
+    // Para cada combo, trae los productos incluidos con todos sus datos
+    for (const combo of combos) {
+      const productosRes = await new sql.Request()
+        .input('idCombo', sql.Int, combo.idCombo)
+        .query(`
+          SELECT 
+            p.idProducto, p.nombre, p.precio, p.imagen, p.tamano, p.stock, cp.cantidad
+          FROM ComboProductos cp
+          JOIN Productos p ON p.idProducto = cp.idProducto
+          WHERE cp.idCombo = @idCombo
+        `);
+      combo.productos = productosRes.recordset; // [{idProducto, nombre, precio, imagen, tamano, stock, cantidad}]
+    }
+
+    res.status(200).json(combos);
+  } catch (error) {
+    res.status(500).json({ message: 'Error al obtener combos', error: error.message });
+  }
+});
+
+
+router.put('/updateCombo/:idCombo', async (req, res) => {
+  const idCombo = parseInt(req.params.idCombo, 10);
+  const { nombre, precio, imagen, productos } = req.body;
+  // productos: [{ idProducto, cantidad }]
+  if (!idCombo || !nombre || !precio || !Array.isArray(productos) || productos.length === 0) {
+    return res.status(400).json({ message: 'Faltan datos del combo o productos' });
+  }
+  try {
+    const pool = await sql.connect(dbConfig);
+
+    // 1. Actualizar datos del combo
+    await pool.request()
+      .input('idCombo', sql.Int, idCombo)
+      .input('nombre', sql.NVarChar, nombre)
+      .input('precio', sql.Decimal(10, 2), precio)
+      .input('imagen', sql.NVarChar, imagen || null)
+      .query(`
+        UPDATE Combos
+        SET nombre = @nombre, precio = @precio, imagen = @imagen
+        WHERE idCombo = @idCombo
+      `);
+
+    // 2. Eliminar productos actuales del combo
+    await pool.request()
+      .input('idCombo', sql.Int, idCombo)
+      .query('DELETE FROM ComboProductos WHERE idCombo = @idCombo');
+
+    // 3. Insertar los nuevos productos del combo
+    for (const p of productos) {
+      await pool.request()
+        .input('idCombo', sql.Int, idCombo)
+        .input('idProducto', sql.Int, p.idProducto)
+        .input('cantidad', sql.Int, p.cantidad)
+        .query(`
+          INSERT INTO ComboProductos (idCombo, idProducto, cantidad)
+          VALUES (@idCombo, @idProducto, @cantidad)
+        `);
+    }
+
+    res.status(200).json({ message: 'Combo actualizado correctamente' });
+  } catch (error) {
+    console.error('❌ Error al actualizar combo:', error);
+    res.status(500).json({ message: 'Error al actualizar combo' });
   }
 });
 

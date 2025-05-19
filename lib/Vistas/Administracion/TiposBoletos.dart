@@ -27,7 +27,7 @@ class Formulario extends StatefulWidget {
 
 class _FormularioState extends State<Formulario> {
   List<TipoBoletoSimple> boletos = [];
-  final TextEditingController DescripcionController = TextEditingController();
+  final TextEditingController nombreController = TextEditingController();
   final TextEditingController Precio2DController = TextEditingController();
   final TextEditingController Precio3DController = TextEditingController();
   final TextEditingController fechaEspecialController = TextEditingController();
@@ -37,7 +37,7 @@ class _FormularioState extends State<Formulario> {
   bool _fechaEspecialSeleccionada = false;
 
   void limpiarCampos() {
-    DescripcionController.clear();
+    nombreController.clear();
     Precio2DController.clear();
     Precio3DController.clear();
     fechaEspecialController.clear();
@@ -60,7 +60,7 @@ class _FormularioState extends State<Formulario> {
   }
 
   Future<void> guardarBoleto() async {
-    if (DescripcionController.text.trim().isEmpty ||
+    if (nombreController.text.trim().isEmpty ||
         Precio2DController.text.trim().isEmpty ||
         Precio3DController.text.trim().isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -71,9 +71,9 @@ class _FormularioState extends State<Formulario> {
     }
 
     final datos = {
-      'nombre': DescripcionController.text.trim(),
-      'precio_2d': double.tryParse(Precio2DController.text.trim()) ?? 0,
-      'precio_3d': double.tryParse(Precio3DController.text.trim()) ?? 0,
+      'nombre': nombreController.text.trim(),
+      'precio_2D': double.tryParse(Precio2DController.text.trim()) ?? 0,
+      'precio_3D': double.tryParse(Precio3DController.text.trim()) ?? 0,
       'fecha_especial':
           usarFechaEspecial && fechaEspecialController.text.trim().isNotEmpty
               ? fechaEspecialController.text.trim()
@@ -116,7 +116,7 @@ class _FormularioState extends State<Formulario> {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   TextField(
-                    controller: DescripcionController,
+                    controller: nombreController,
                     style: const TextStyle(color: Colors.white),
                     decoration: InputDecoration(
                       labelText: 'Nombre del Boleto',
@@ -223,12 +223,12 @@ class _FormularioState extends State<Formulario> {
               ElevatedButton(
                 onPressed: () async {
                   final datos = {
-                    'nombre': DescripcionController.text.trim(),
+                    'nombre': nombreController.text.trim(),
                     'precio_2D':
                         double.tryParse(Precio2DController.text.trim()) ?? 0,
                     'precio_3D':
                         double.tryParse(Precio3DController.text.trim()) ?? 0,
-                    'fecha_especial': _fechaEspecialSeleccionada &&
+                    'fecha_especial': usarFechaEspecial &&
                             fechaEspecialController.text.isNotEmpty
                         ? fechaEspecialController.text
                         : null,
@@ -374,7 +374,7 @@ class _FormularioState extends State<Formulario> {
                               setState(() {
                                 _modoEdicion = true;
                                 _idEditando = b.id;
-                                DescripcionController.text = b.nombre;
+                                nombreController.text = b.nombre;
                                 Precio2DController.text = b.precio2D.toString();
                                 Precio3DController.text = b.precio3D.toString();
                                 if (b.fechaEspecial != null) {
@@ -395,9 +395,33 @@ class _FormularioState extends State<Formulario> {
                           IconButton(
                             icon: const Icon(Icons.delete, color: Colors.white),
                             onPressed: () async {
-                              final ok =
-                                  await ControladorBoletos.eliminarBoleto(b.id);
-                              if (ok) cargarBoletos();
+                              final confirm = await showDialog<bool>(
+                                context: context,
+                                builder: (context) => AlertDialog(
+                                  title: const Text('Confirmar eliminación'),
+                                  content: const Text(
+                                      '¿Estás seguro de que deseas eliminar este boleto?'),
+                                  actions: [
+                                    TextButton(
+                                      onPressed: () =>
+                                          Navigator.of(context).pop(false),
+                                      child: const Text('Cancelar'),
+                                    ),
+                                    TextButton(
+                                      onPressed: () =>
+                                          Navigator.of(context).pop(true),
+                                      child: const Text('Eliminar',
+                                          style: TextStyle(color: Colors.red)),
+                                    ),
+                                  ],
+                                ),
+                              );
+                              if (confirm == true) {
+                                final ok =
+                                    await ControladorBoletos.eliminarBoleto(
+                                        b.id);
+                                if (ok) cargarBoletos();
+                              }
                             },
                           ),
                         ],

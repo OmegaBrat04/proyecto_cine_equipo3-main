@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:proyecto_cine_equipo3/Vistas/Administracion/RegistroIntermedios.dart';
-import 'package:proyecto_cine_equipo3/Vistas/Administracion/Menu.dart'; // Asegúrate de importar la pantalla anterior
+import 'package:proyecto_cine_equipo3/Vistas/Administracion/Menu.dart';
 
 class ListaIntermedios extends StatefulWidget {
   const ListaIntermedios({super.key});
@@ -15,8 +15,8 @@ class _ListaIntermediosState extends State<ListaIntermedios> {
   late Future<List<Intermedio>> _intermedios;
 
   Future<List<Intermedio>> fetchIntermedios() async {
-    final response =
-        await http.get(Uri.parse('http://localhost:3000/getIntermedios'));
+    final response = await http
+        .get(Uri.parse('http://localhost:3000/api/admin/getIntermedios'));
 
     if (response.statusCode == 200) {
       final List<dynamic> jsonList = json.decode(response.body);
@@ -27,8 +27,8 @@ class _ListaIntermediosState extends State<ListaIntermedios> {
   }
 
   Future<void> eliminarIntermedio(int id) async {
-    final res = await http
-        .delete(Uri.parse('http://localhost:3000/deleteIntermedio/$id'));
+    final res = await http.delete(
+        Uri.parse('http://localhost:3000/api/admin/deleteIntermedio/$id'));
 
     if (res.statusCode == 200) {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
@@ -107,39 +107,105 @@ class _ListaIntermediosState extends State<ListaIntermedios> {
                       Text('Costo: \$${i.costoTotalEstimado}',
                           style: const TextStyle(color: Colors.white70)),
                       Text(
-                        'Consumibles: ${i.consumibles.map((c) => "${c.nombre} (${c.cantidadUsada})").join(", ")}',
+                        'Consumibles: ${i.consumibles.map((c) => c.nombre).join(", ")}',
                         style: const TextStyle(color: Colors.white60),
                       )
                     ],
                   ),
-                  trailing: IconButton(
-                    icon: const Icon(Icons.delete, color: Colors.red),
-                    onPressed: () async {
-                      final confirm = await showDialog<bool>(
-                        context: context,
-                        builder: (context) => AlertDialog(
-                          title: const Text('¿Eliminar Intermedio?'),
-                          content: const Text(
-                              'Esta acción no se puede deshacer. ¿Estás seguro?'),
-                          actions: [
-                            TextButton(
-                              onPressed: () => Navigator.pop(context, false),
-                              child: const Text('Cancelar'),
+                  trailing: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      IconButton(
+                        icon: const Icon(Icons.edit, color: Colors.amber),
+                        onPressed: () async {
+                          final nuevaCantidad = await showDialog<double>(
+                            context: context,
+                            builder: (context) {
+                              final controller = TextEditingController(
+                                  text: i.cantidadProducida.toString());
+                              return AlertDialog(
+                                title: const Text('Editar cantidad producida'),
+                                content: TextField(
+                                  controller: controller,
+                                  keyboardType: TextInputType.number,
+                                  decoration: const InputDecoration(
+                                      labelText: 'Nueva cantidad'),
+                                ),
+                                actions: [
+                                  TextButton(
+                                    onPressed: () => Navigator.pop(context),
+                                    child: const Text('Cancelar'),
+                                  ),
+                                  ElevatedButton(
+                                    onPressed: () {
+                                      final val =
+                                          double.tryParse(controller.text);
+                                      if (val != null) {
+                                        Navigator.pop(context, val);
+                                      }
+                                    },
+                                    child: const Text('Guardar'),
+                                  ),
+                                ],
+                              );
+                            },
+                          );
+                          if (nuevaCantidad != null) {
+                            final res = await http.put(
+                              Uri.parse(
+                                  'http://localhost:3000/api/admin/updateIntermedio/${i.id}'),
+                              headers: {'Content-Type': 'application/json'},
+                              body: jsonEncode(
+                                  {'cantidad_producida': nuevaCantidad}),
+                            );
+                            if (res.statusCode == 200) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                    content: Text('✅ Cantidad actualizada')),
+                              );
+                              setState(() {
+                                _intermedios = fetchIntermedios();
+                              });
+                            } else {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                    content: Text('❌ Error al actualizar')),
+                              );
+                            }
+                          }
+                        },
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.delete, color: Colors.red),
+                        onPressed: () async {
+                          final confirm = await showDialog<bool>(
+                            context: context,
+                            builder: (context) => AlertDialog(
+                              title: const Text('¿Eliminar Intermedio?'),
+                              content: const Text(
+                                  'Esta acción no se puede deshacer. ¿Estás seguro?'),
+                              actions: [
+                                TextButton(
+                                  onPressed: () =>
+                                      Navigator.pop(context, false),
+                                  child: const Text('Cancelar'),
+                                ),
+                                ElevatedButton(
+                                  onPressed: () => Navigator.pop(context, true),
+                                  style: ElevatedButton.styleFrom(
+                                      backgroundColor: Colors.red),
+                                  child: const Text('Eliminar'),
+                                ),
+                              ],
                             ),
-                            ElevatedButton(
-                              onPressed: () => Navigator.pop(context, true),
-                              style: ElevatedButton.styleFrom(
-                                  backgroundColor: Colors.red),
-                              child: const Text('Eliminar'),
-                            ),
-                          ],
-                        ),
-                      );
+                          );
 
-                      if (confirm == true) {
-                        eliminarIntermedio(i.id);
-                      }
-                    },
+                          if (confirm == true) {
+                            eliminarIntermedio(i.id);
+                          }
+                        },
+                      ),
+                    ],
                   ),
                 ),
               );
@@ -148,12 +214,16 @@ class _ListaIntermediosState extends State<ListaIntermedios> {
         },
       ),
       floatingActionButton: FloatingActionButton(
-        onPressed: () {
-          Navigator.push(
+        onPressed: () async {
+          await Navigator.push(
             context,
             MaterialPageRoute(
-                builder: (context) => const Registrointermedios()),
+              builder: (context) => const Registrointermedios(),
+            ),
           );
+          setState(() {
+            _intermedios = fetchIntermedios();
+          });
         },
         backgroundColor: const Color(0xff14AE5C),
         child: const Icon(Icons.add, color: Colors.white),

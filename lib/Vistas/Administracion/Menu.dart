@@ -288,7 +288,7 @@ class _MenuState extends State<Menu> {
                                       );
                                     },
                                   ),
-                                  _buildSubmenuButton(
+                                 /* _buildSubmenuButton(
                                     icon: EvaIcons.plusCircle,
                                     label: 'Extras',
                                     onPressed: () {
@@ -298,7 +298,7 @@ class _MenuState extends State<Menu> {
                                             builder: (context) => Extras()),
                                       );
                                     },
-                                  ),
+                                  ),*/
                                 ],
                               ),
                             ),

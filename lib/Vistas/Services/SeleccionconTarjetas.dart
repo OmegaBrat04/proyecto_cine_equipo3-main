@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 
 class MultiSelectCardDialog extends StatefulWidget {
-  final List<Map<String, String>> items;
-  final List<Map<String, String>> initialSelectedItems;
+  final List<Map<String, dynamic>> items;
+  final List<Map<String, dynamic>> initialSelectedItems;
   final String? titulo;
 
   const MultiSelectCardDialog({
@@ -17,12 +17,13 @@ class MultiSelectCardDialog extends StatefulWidget {
 }
 
 class _MultiSelectCardDialogState extends State<MultiSelectCardDialog> {
-  late List<Map<String, String>> _selectedItems;
+  late List<Map<String, dynamic>> _selectedItems;
 
   @override
   void initState() {
     super.initState();
-    _selectedItems = List.from(widget.initialSelectedItems);
+    _selectedItems =
+        List<Map<String, dynamic>>.from(widget.initialSelectedItems);
   }
 
   @override
@@ -47,12 +48,14 @@ class _MultiSelectCardDialogState extends State<MultiSelectCardDialog> {
           itemCount: widget.items.length,
           itemBuilder: (context, index) {
             final item = widget.items[index];
-            final isSelected = _selectedItems.contains(item);
+            final isSelected = _selectedItems
+                .any((e) => e['idProducto'] == item['idProducto']);
             return GestureDetector(
               onTap: () {
                 setState(() {
                   if (isSelected) {
-                    _selectedItems.remove(item);
+                    _selectedItems.removeWhere(
+                        (e) => e['idProducto'] == item['idProducto']);
                   } else {
                     _selectedItems.add(item);
                   }
@@ -69,11 +72,15 @@ class _MultiSelectCardDialogState extends State<MultiSelectCardDialog> {
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    Image.asset(
+                    Image.network(
                       item["imagen"]!,
                       fit: BoxFit.contain,
                       height: 100,
                       width: double.infinity,
+                      errorBuilder: (context, error, stackTrace) => const Icon(
+                          Icons.broken_image,
+                          size: 60,
+                          color: Colors.grey),
                     ),
                     const SizedBox(height: 5),
                     Text(
@@ -97,6 +104,15 @@ class _MultiSelectCardDialogState extends State<MultiSelectCardDialog> {
                     const SizedBox(height: 5),
                     Text(
                       'Stock: ${item["stock"]!}',
+                      style: const TextStyle(
+                        fontSize: 12,
+                        color: Colors.white70,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: 5),
+                    Text(
+                      'Tamaño: ${item["tamano"] ?? "-"}',
                       style: const TextStyle(
                         fontSize: 12,
                         color: Colors.white70,

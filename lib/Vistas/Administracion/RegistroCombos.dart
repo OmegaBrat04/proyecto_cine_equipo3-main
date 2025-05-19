@@ -1,7 +1,9 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'dart:io';
-
+import 'package:http/http.dart' as http;
 import 'package:proyecto_cine_equipo3/Vistas/Services/SeleccionconTarjetas.dart';
 
 void main() {
@@ -9,19 +11,20 @@ void main() {
 }
 
 class Registrocombos extends StatelessWidget {
-  const Registrocombos({super.key});
+  final Map<String, dynamic>? combo;
+  const Registrocombos({Key? key, this.combo}) : super(key: key);
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-        body: formulario(),
-      );
- 
+      body: formulario(combo: combo),
+    );
   }
 }
 
 class formulario extends StatefulWidget {
-  const formulario({super.key});
+  final Map<String, dynamic>? combo;
+  const formulario({Key? key, this.combo}) : super(key: key);
 
   @override
   _formularioState createState() => _formularioState();
@@ -34,30 +37,12 @@ class _formularioState extends State<formulario> {
   final precioSugController = TextEditingController();
   final cConsumiblesController = TextEditingController();
   File? _imagen;
+  String? _imagenUrl;
   String dropdownValue = 'U';
   int cantidad = 0;
 
-  List<Map<String, String>> _productos = [
-    {
-      "nombre": "Refresco Grande",
-      "imagen": "images/coca.jpeg",
-      "precio": "45",
-      "stock": "100"
-    },
-    {
-      "nombre": "Nachos con queso grandes",
-      "imagen": "images/Nachos.jpg",
-      "precio": "75",
-      "stock": "100"
-    },
-    {
-      "nombre": "Palomitas de Mantequilla grandes",
-      "imagen": "images/Palomitas.jpeg",
-      "precio": "80",
-      "stock": "100"
-    },
-  ];
-  List<Map<String, String>> _productosSeleccionados = [];
+  List<Map<String, dynamic>> _productos = [];
+  List<Map<String, dynamic>> _productosSeleccionados = [];
 
   Future<void> _seleccionarImagen() async {
     final imgSeleccionada =
@@ -72,8 +57,57 @@ class _formularioState extends State<formulario> {
     });
   }
 
+  @override
+void initState() {
+  super.initState();
+  print(widget.combo);
+  fetchProductos().then((_) {
+    if (widget.combo != null) {
+      nombreController.text = widget.combo!['nombre'] ?? '';
+      precioSugController.text =
+          (widget.combo!['precio'] as num?)?.toStringAsFixed(2) ?? '';
+      _productosSeleccionados =
+          List<Map<String, dynamic>>.from(widget.combo!['productos'] ?? []);
+      _imagenUrl = widget.combo!['imagen']?.toString();
+      setState(() {});
+    }
+  });
+}
+
+  Future<void> fetchProductos() async {
+    try {
+      final response = await http
+          .get(Uri.parse('http://localhost:3000/api/admin/getAllProductos'));
+      if (response.statusCode == 200) {
+        setState(() {
+          _productos =
+              List<Map<String, dynamic>>.from(json.decode(response.body));
+        });
+      } else {
+        print('Error al cargar productos: ${response.statusCode}');
+      }
+    } catch (e) {
+      print('❌ Error al cargar productos: $e');
+    }
+  }
+
+  Future<String?> subirImagen(File imagen) async {
+    final request = http.MultipartRequest(
+      'POST',
+      Uri.parse('http://localhost:3000/api/admin/uploadImage'),
+    );
+    request.files.add(await http.MultipartFile.fromPath('poster', imagen.path));
+    final response = await request.send();
+    if (response.statusCode == 200) {
+      final respStr = await response.stream.bytesToString();
+      final respJson = jsonDecode(respStr);
+      return respJson['imageUrl'];
+    }
+    return null;
+  }
+
   Future<void> _seleccionarProductos() async {
-    final List<Map<String, String>> seleccionados = await showDialog(
+    final List<Map<String, dynamic>> seleccionados = await showDialog(
       context: context,
       builder: (BuildContext context) {
         return MultiSelectCardDialog(
@@ -85,9 +119,45 @@ class _formularioState extends State<formulario> {
     );
     if (seleccionados != null) {
       setState(() {
-        _productosSeleccionados = seleccionados;
+        _productosSeleccionados = seleccionados.map((p) {
+          return {
+            ...p,
+            'cantidad': p['cantidad'] ?? 1,
+          };
+        }).toList();
+
+        // Sumar precios de los productos seleccionados
+        double suma = 0.0;
+        for (final p in _productosSeleccionados) {
+          final precio = (p['precio'] as num?)?.toDouble() ?? 0.0;
+          final cantidad = (p['cantidad'] as int?) ?? 1;
+          suma += precio * cantidad;
+        }
+        precioSugController.text = suma.toStringAsFixed(2);
       });
     }
+  }
+
+  void _agregarProducto(Map<String, String> producto) {
+    setState(() {
+      if (!_productosSeleccionados
+          .any((p) => p['nombre'] == producto['nombre'])) {
+        _productosSeleccionados.add({
+          ...producto,
+          'cantidad': 1,
+        });
+      }
+    });
+  }
+
+  void actualizarPrecioSugerido() {
+    double suma = 0.0;
+    for (final p in _productosSeleccionados) {
+      final precio = (p['precio'] as num?)?.toDouble() ?? 0.0;
+      final cantidad = (p['cantidad'] as int?) ?? 1;
+      suma += precio * cantidad;
+    }
+    precioSugController.text = suma.toStringAsFixed(2);
   }
 
   @override
@@ -189,19 +259,25 @@ class _formularioState extends State<formulario> {
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
                                     const SizedBox(height: 20),
-                                    _imagen == null
-                                        ? Container(
+                                    (_imagenUrl != null &&
+                                            _imagenUrl!.isNotEmpty)
+                                        ? Image.network(
+                                            _imagenUrl!,
+                                            width: 170,
+                                            height: 220,
+                                            fit: BoxFit.contain,
+                                            errorBuilder: (context, error,
+                                                    stackTrace) =>
+                                                const Icon(Icons.broken_image,
+                                                    size: 100,
+                                                    color: Colors.grey),
+                                          )
+                                        : Container(
                                             width: 170,
                                             height: 220,
                                             color: Colors.grey[300],
                                             child: const Icon(Icons.image,
                                                 size: 100, color: Colors.grey),
-                                          )
-                                        : Image.file(
-                                            _imagen!,
-                                            width: 170,
-                                            height: 220,
-                                            fit: BoxFit.contain,
                                           ),
                                     const SizedBox(height: 20),
                                     SizedBox(
@@ -352,7 +428,7 @@ class _formularioState extends State<formulario> {
                                           children: _productosSeleccionados
                                               .map((producto) => ListTile(
                                                     title: Text(
-                                                      producto["nombre"]!,
+                                                      producto["nombre"]?? '',
                                                       style: const TextStyle(
                                                           color: Colors.black,
                                                           fontSize: 11,
@@ -371,9 +447,15 @@ class _formularioState extends State<formulario> {
                                                               size: 20),
                                                           onPressed: () {
                                                             setState(() {
-                                                              if (cantidad >
-                                                                  0) {
-                                                                cantidad--;
+                                                              if (producto[
+                                                                      'cantidad'] >
+                                                                  1) {
+                                                                producto[
+                                                                        'cantidad'] =
+                                                                    producto[
+                                                                            'cantidad'] -
+                                                                        1;
+                                                                actualizarPrecioSugerido();
                                                               }
                                                             });
                                                           },
@@ -381,7 +463,8 @@ class _formularioState extends State<formulario> {
                                                         const SizedBox(
                                                             width: 5),
                                                         Text(
-                                                          cantidad.toString(),
+                                                          producto['cantidad']
+                                                              .toString(),
                                                           style: const TextStyle(
                                                               color:
                                                                   Colors.black,
@@ -400,7 +483,12 @@ class _formularioState extends State<formulario> {
                                                               size: 20),
                                                           onPressed: () {
                                                             setState(() {
-                                                              cantidad++;
+                                                              producto[
+                                                                      'cantidad'] =
+                                                                  producto[
+                                                                          'cantidad'] +
+                                                                      1;
+                                                              actualizarPrecioSugerido();
                                                             });
                                                           },
                                                         ),
@@ -438,7 +526,81 @@ class _formularioState extends State<formulario> {
                           height: 40,
                           width: 250,
                           child: ElevatedButton(
-                            onPressed: () {},
+                            onPressed: () async {
+                              String? imageUrl;
+                              if (_imagen != null) {
+                                final url = await subirImagen(_imagen!);
+                                if (url != null) _imagenUrl = url;
+                              }
+                              final List<Map<String, dynamic>> productosCombo =
+                                  _productosSeleccionados
+                                      .map((p) => {
+                                            'idProducto': p['idProducto'],
+                                            'cantidad': p['cantidad'],
+                                          })
+                                      .toList();
+
+                              final data = {
+                                'idCombo': widget.combo?['idCombo'],
+                                'nombre': nombreController.text,
+                                'precio':
+                                    double.tryParse(precioSugController.text) ??
+                                        0.0,
+                                'imagen':
+                                    imageUrl ?? (widget.combo?['imagen'] ?? ''),
+                                'productos': productosCombo,
+                              };
+
+                              if (widget.combo?['idCombo'] != null) {
+                                // EDICIÓN
+                                final resp = await http.put(
+                                  Uri.parse(
+                                      'http://localhost:3000/api/admin/updateCombo/${widget.combo!['idCombo']}'),
+                                  headers: {'Content-Type': 'application/json'},
+                                  body: jsonEncode(data),
+                                );
+                                if (resp.statusCode == 200) {
+                                  if (context.mounted) {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      const SnackBar(
+                                          content: Text(
+                                              '✅ Combo editado exitosamente')),
+                                    );
+                                    Navigator.pop(context);
+                                  }
+                                } else {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(
+                                        content:
+                                            Text('❌ Error al editar combo')),
+                                  );
+                                }
+                              } else {
+                                // CREACIÓN
+                                final resp = await http.post(
+                                  Uri.parse(
+                                      'http://localhost:3000/api/admin/addCombo'),
+                                  headers: {'Content-Type': 'application/json'},
+                                  body: jsonEncode(data),
+                                );
+                                if (resp.statusCode == 201) {
+                                  if (context.mounted) {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      const SnackBar(
+                                          content: Text(
+                                              '✅ Combo guardado exitosamente')),
+                                    );
+                                    Navigator.pop(context);
+                                  }
+                                } else {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(
+                                        content:
+                                            Text('❌ Error al guardar combo')),
+                                  );
+                                }
+                              }
+                            },
                             style: ElevatedButton.styleFrom(
                               shape: RoundedRectangleBorder(
                                 borderRadius: BorderRadius.circular(5),

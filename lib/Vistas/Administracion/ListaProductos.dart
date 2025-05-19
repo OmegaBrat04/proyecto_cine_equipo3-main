@@ -28,6 +28,9 @@ class Producto {
   final int stock;
   final double precio;
   final String imagen;
+  final String tamano;
+  final double porcionCantidad;
+  final String porcionUnidad;
 
   Producto({
     required this.id,
@@ -35,6 +38,9 @@ class Producto {
     required this.stock,
     required this.precio,
     required this.imagen,
+    required this.tamano,
+    required this.porcionCantidad,
+    required this.porcionUnidad,
   });
 
   factory Producto.fromJson(Map<String, dynamic> json) {
@@ -44,6 +50,12 @@ class Producto {
       stock: json['stock'] as int,
       precio: (json['precio'] as num).toDouble(),
       imagen: json['imagen'] as String,
+      tamano: json['tamano'] ?? json['Tamano'] ?? '',
+      porcionCantidad:
+          (json['porcionCantidad'] ?? json['PorcionCantidad'] as num?)
+                  ?.toDouble() ??
+              0.0,
+      porcionUnidad: json['porcionUnidad'] ?? json['PorcionUnidad'] ?? '',
     );
   }
 }
@@ -76,11 +88,72 @@ class _ListaState extends State<Lista> {
           productos = listaJson.map((json) => Producto.fromJson(json)).toList();
           productosFiltrados = productos;
         });
+        print(listaJson);
       } else {
         print('Error al cargar productos: \${response.statusCode}');
       }
     } catch (e) {
       print('Error al conectar con la API: \$e');
+    }
+  }
+
+  void _mostrarDialogoAumentarStock(String nombre, int stock,
+      {required int productoId}) async {
+    final TextEditingController cantidadController = TextEditingController();
+    final cantidadNueva = await showDialog<int>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('Aumentar stock de $nombre'),
+        content: TextField(
+          controller: cantidadController,
+          keyboardType: TextInputType.number,
+          decoration: const InputDecoration(labelText: 'Cantidad a añadir'),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancelar'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              final val = int.tryParse(cantidadController.text);
+              if (val != null && val > 0) {
+                Navigator.pop(context, val);
+              }
+            },
+            child: const Text('Actualizar'),
+          ),
+        ],
+      ),
+    );
+    if (cantidadNueva != null && cantidadNueva > 0) {
+      await _actualizarStockYDescontar(productoId, cantidadNueva);
+    }
+  }
+
+  Future<void> _actualizarStockYDescontar(
+      int productoId, int cantidadNueva) async {
+    final uri =
+        Uri.parse('http://localhost:3000/api/admin/aumentarStockProducto');
+    final resp = await http.post(
+      uri,
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({
+        'idProducto': productoId,
+        'cantidadAumentar': cantidadNueva,
+      }),
+    );
+    if (resp.statusCode == 200) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+            content: Text('Stock actualizado y descontado correctamente')),
+      );
+      await _fetchProductos(); // Recarga la lista automáticamente
+      setState(() {});
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error: ${resp.body}')),
+      );
     }
   }
 
@@ -264,17 +337,29 @@ class _ListaState extends State<Lista> {
       itemBuilder: (context, index) {
         final producto = productosFiltrados[index];
         return _buildTarjetaProducto(
+          producto.id,
           producto.imagen,
           producto.nombre,
           producto.stock,
           producto.precio,
+          producto.tamano,
+          producto.porcionCantidad,
+          producto.porcionUnidad,
         );
       },
     );
   }
 
   Widget _buildTarjetaProducto(
-      String imagen, String nombre, int stock, double precio) {
+    int id,
+    String imagen,
+    String nombre,
+    int stock,
+    double precio,
+    String tamano,
+    double porcionCantidad,
+    String porcionUnidad,
+  ) {
     return Card(
       elevation: 5,
       color: Colors.white,
@@ -335,13 +420,22 @@ class _ListaState extends State<Lista> {
               ),
               const SizedBox(height: 4),
               Text(
-                'Stock: $stock',
+                'Tamaño: ${tamano.isNotEmpty ? tamano : "Sin tamaño"}',
                 style: const TextStyle(color: Colors.black, fontSize: 12),
               ),
-              const SizedBox(height: 4),
               Text(
-                'Precio: \$${precio.toStringAsFixed(2)}',
+                'Porción: ${porcionCantidad > 0 ? porcionCantidad.toStringAsFixed(2) : "-"} ${porcionUnidad.isNotEmpty ? porcionUnidad : ""}',
                 style: const TextStyle(color: Colors.black, fontSize: 12),
+              ),
+              Text('Stock: $stock',
+                  style: const TextStyle(color: Colors.black, fontSize: 12)),
+              Text('Precio: \$${precio.toStringAsFixed(2)}',
+                  style: const TextStyle(color: Colors.black, fontSize: 12)),
+              const SizedBox(height: 8),
+              ElevatedButton(
+                onPressed: () =>
+                    _mostrarDialogoAumentarStock(nombre, stock, productoId: id),
+                child: const Text('Aumentar Stock'),
               ),
             ],
           ),

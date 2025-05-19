@@ -61,7 +61,7 @@ class ConsumibleUsado {
   factory ConsumibleUsado.fromJson(Map<String, dynamic> json) {
     return ConsumibleUsado(
       nombre: json['nombre'],
-      cantidadUsada: json['cantidad_usada'].toDouble(),
+      cantidadUsada: (json['cantidad'] as num?)?.toDouble() ?? 0.0,
     );
   }
 }
@@ -94,9 +94,11 @@ class Intermedio {
       id: json['id'],
       nombre: json['nombre'],
       imagen: json['imagen'],
-      cantidadProducida: json['cantidad_producida'].toDouble(),
+      cantidadProducida:
+          (json['cantidad_producida'] as num?)?.toDouble() ?? 0.0,
       unidad: json['unidad'],
-      costoTotalEstimado: json['costo_total_estimado'].toDouble(),
+      costoTotalEstimado:
+          (json['costo_total_estimado'] as num?)?.toDouble() ?? 0.0,
       consumibles: listaConsumibles,
     );
   }
@@ -113,55 +115,42 @@ class _formularioState extends State<formulario> {
   final TextEditingController nombreController = TextEditingController();
   final TextEditingController stockController = TextEditingController();
   final TextEditingController costoController = TextEditingController();
-  final TextEditingController consumiblesController = TextEditingController();
+  final TextEditingController recetasController = TextEditingController();
+  String porcionBaseUnidad = 'U';
 
   File? _imagen;
   String dropdownValue = 'U';
   String? _imagenUrl;
 
-  List<Consumible> _consumiblesDisponibles = [];
+  List<Map<String, dynamic>> recetas = [];
+  int? recetaSeleccionadaId;
+  List<Map<String, dynamic>> consumiblesDeReceta = [];
+  double porcionBase = 1.0;
 
-  void _calcularCostoTotal() {
-    double total = 0.0;
-
-    _consumiblesSeleccionados.forEach((nombre, controller) {
-      final cantidad = double.tryParse(controller.text) ?? 0.0;
-      final consumible = _consumiblesDisponibles.firstWhere(
-        (c) => c.nombre == nombre,
-        orElse: () => Consumible(
-            id: 0, nombre: '', unidad: '', precioUnitario: 0.0, stock: 0),
-      );
-      total += cantidad * consumible.precioUnitario;
-    });
-
-    setState(() {
-      costoController.text = total.toStringAsFixed(2);
-    });
+  Future<void> fetchRecetas() async {
+    final response =
+        await http.get(Uri.parse('http://localhost:3000/api/admin/getRecetas'));
+    if (response.statusCode == 200) {
+      recetas = List<Map<String, dynamic>>.from(jsonDecode(response.body));
+      setState(() {});
+    }
   }
 
-  Future<void> _fetchConsumibles() async {
-    try {
-      final response =
-          await http.get(Uri.parse('http://localhost:3000/api/admin/getAllConsumibles'));
-      if (response.statusCode == 200) {
-        final List<dynamic> data = json.decode(response.body);
-        setState(() {
-          _consumiblesDisponibles =
-              data.map((json) => Consumible.fromJson(json)).toList();
-        });
-      } else {
-        // Manejo de errores
-      }
-    } catch (e) {
-      // Manejo de unidad
-    }
+  void onRecetaSeleccionada(int recetaId) async {
+    final receta = recetas.firstWhere((r) => r['id'] == recetaId);
+    consumiblesDeReceta =
+        List<Map<String, dynamic>>.from(receta['ingredientes']);
+    setState(() {
+      recetaSeleccionadaId = recetaId;
+      porcionBaseUnidad = receta['unidadPorcion'] ?? 'U';
+    });
   }
 
 //controller
   @override
   void initState() {
     super.initState();
-    _fetchConsumibles();
+    fetchRecetas();
   }
 
   final List<String> _unidades = ['U', 'Kg', 'L'];
@@ -201,38 +190,34 @@ class _formularioState extends State<formulario> {
     }
   }
 
-  Future<void> _seleccionarConsumibles() async {
-    final List<String>? seleccionados = await showDialog<List<String>>(
-      context: context,
-      builder: (BuildContext context) {
-        return MultiSelectDialog(
-          items: _consumiblesDisponibles.map((c) => c.nombre).toList(),
-          initialSelectedItems: _consumiblesSeleccionados.keys.toList(),
-          titulo: 'Seleccione los consumibles a usar',
-        );
-      },
-    );
-
-    if (seleccionados != null) {
-      setState(() {
-        final nuevosSeleccionados = <String, TextEditingController>{};
-
-        for (var consumible in seleccionados) {
-          if (_consumiblesSeleccionados.containsKey(consumible)) {
-            nuevosSeleccionados[consumible] =
-                _consumiblesSeleccionados[consumible]!;
-          } else {
-            nuevosSeleccionados[consumible] = TextEditingController();
-          }
-        }
-
-        _consumiblesSeleccionados
-          ..clear()
-          ..addAll(nuevosSeleccionados);
-      });
-
-      _calcularCostoTotal(); // Opcional si quieres recalcular al cerrar selección
+  void _calcularCostoTotal() {
+    double total = 0.0;
+    for (final c in consumiblesDeReceta) {
+      final cantidad = (c['cantidad'] as num?)?.toDouble() ?? 0.0;
+      final precio = (c['precio_unitario'] as num?)?.toDouble() ?? 0.0;
+      total += cantidad * precio;
     }
+
+    final double cantidadProducida =
+        double.tryParse(stockController.text) ?? porcionBase;
+    // CONVIERTE LA CANTIDAD PRODUCIDA A LA UNIDAD BASE DE LA RECETA
+    final double cantidadProducidaNormalizada = convertirUnidad(
+        cantidadProducida,
+        mapDropdownToUnidad(dropdownValue, porcionBaseUnidad), // <-- aquí
+        porcionBaseUnidad);
+    if (cantidadProducidaNormalizada == -1) {
+      setState(() {
+        costoController.text = '';
+      });
+      return;
+    }
+    final double factor =
+        porcionBase > 0 ? (cantidadProducidaNormalizada / porcionBase) : 1.0;
+    final double costoFinal = total * factor;
+
+    setState(() {
+      costoController.text = costoFinal.toStringAsFixed(2);
+    });
   }
 
   void _guardarIntermedio() async {
@@ -248,6 +233,8 @@ class _formularioState extends State<formulario> {
       return;
     }
 
+    final ok = await validarYActualizarStock();
+    if (!ok) return;
     final double? stock = double.tryParse(stockController.text);
     final double? costo = double.tryParse(costoController.text);
     if (stock == null || costo == null) {
@@ -266,12 +253,7 @@ class _formularioState extends State<formulario> {
       'cantidad_producida': stock,
       'unidad': dropdownValue,
       'costo_total_estimado': costo,
-      'consumibles_usados': _consumiblesSeleccionados.entries.map((e) {
-        return {
-          'nombre': e.key,
-          'cantidad_usada': double.tryParse(e.value.text) ?? 0.0,
-        };
-      }).toList(),
+      'receta_id': recetaSeleccionadaId,
     };
 
     final response = await http.post(
@@ -281,18 +263,16 @@ class _formularioState extends State<formulario> {
     );
 
     if (response.statusCode == 201) {
+      await descontarStockConsumibles();
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('✅ Intermedio guardado correctamente'),
           backgroundColor: Colors.green,
         ),
       );
-      Future.delayed(const Duration(seconds: 3), () {
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(builder: (_) => const ListaIntermedios()),
-        );
-      });
+      if (context.mounted) {
+        Navigator.pop(context);
+      }
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -301,6 +281,111 @@ class _formularioState extends State<formulario> {
         ),
       );
     }
+  }
+
+  Future<bool> validarYActualizarStock() async {
+    for (final c in consumiblesDeReceta) {
+      final int consumibleId = c['idConsumible'] ?? c['id'] ?? 0;
+      final double cantidadBase = (c['cantidad'] as num?)?.toDouble() ?? 0.0;
+      final double cantidadProducida =
+          double.tryParse(stockController.text) ?? porcionBase;
+      final double cantidadProducidaNormalizada = convertirUnidad(
+          cantidadProducida,
+          dropdownValue, // U, Kg, L
+          porcionBaseUnidad // gr, ml, etc
+          );
+      if (cantidadProducidaNormalizada == -1) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('❌ Unidad incompatible con la receta'),
+            backgroundColor: Colors.red,
+          ),
+        );
+        return false;
+      }
+      final double factor =
+          porcionBase > 0 ? (cantidadProducidaNormalizada / porcionBase) : 1.0;
+      final double cantidadNecesaria = cantidadBase * factor;
+      final response = await http.get(Uri.parse(
+          'http://localhost:3000/api/admin/getConsumible/$consumibleId'));
+      if (response.statusCode != 200) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+              content: Text('❌ Error al consultar stock de ${c['nombre']}')),
+        );
+        return false;
+      }
+      final data = jsonDecode(response.body);
+      final double stockActual = (data['stock'] as num?)?.toDouble() ?? 0.0;
+
+      if (stockActual < cantidadNecesaria) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+                '❌ Stock insuficiente para "${c['nombre']}". Disponible: $stockActual, requerido: $cantidadNecesaria'),
+            backgroundColor: Colors.red,
+          ),
+        );
+        return false;
+      }
+    }
+    return true;
+  }
+
+  Future<void> descontarStockConsumibles() async {
+    for (final c in consumiblesDeReceta) {
+      final int consumibleId = c['idConsumible'] ?? c['id'] ?? 0;
+      final double cantidadBase = (c['cantidad'] as num?)?.toDouble() ?? 0.0;
+      final double cantidadProducida =
+          double.tryParse(stockController.text) ?? porcionBase;
+      final double factor =
+          porcionBase > 0 ? (cantidadProducida / porcionBase) : 1.0;
+      final double cantidadDescontar = cantidadBase * factor;
+
+      await http.put(
+        Uri.parse(
+            'http://localhost:3000/api/admin/descontarStock/$consumibleId'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({'cantidad': cantidadDescontar}),
+      );
+    }
+  }
+
+  String mapDropdownToUnidad(String dropdownValue, String unidadReceta) {
+    dropdownValue = dropdownValue.toLowerCase();
+    unidadReceta = unidadReceta.toLowerCase();
+    if (dropdownValue == 'kg' && (unidadReceta == 'gr' || unidadReceta == 'kg'))
+      return 'kg';
+    if (dropdownValue == 'l' && (unidadReceta == 'ml' || unidadReceta == 'l'))
+      return 'l';
+    if (dropdownValue == 'u' && unidadReceta == 'u') return 'u';
+    return dropdownValue;
+  }
+
+  double convertirUnidad(
+      double cantidad, String unidadOrigen, String unidadDestino) {
+    unidadOrigen = unidadOrigen.toLowerCase();
+    unidadDestino = unidadDestino.toLowerCase();
+
+    // Peso
+    if ((unidadOrigen == 'gr' || unidadOrigen == 'kg') &&
+        (unidadDestino == 'gr' || unidadDestino == 'kg')) {
+      if (unidadOrigen == unidadDestino) return cantidad;
+      if (unidadOrigen == 'gr' && unidadDestino == 'kg') return cantidad / 1000;
+      if (unidadOrigen == 'kg' && unidadDestino == 'gr') return cantidad * 1000;
+    }
+    // Volumen
+    if ((unidadOrigen == 'ml' || unidadOrigen == 'l') &&
+        (unidadDestino == 'ml' || unidadDestino == 'l')) {
+      if (unidadOrigen == unidadDestino) return cantidad;
+      if (unidadOrigen == 'ml' && unidadDestino == 'l') return cantidad / 1000;
+      if (unidadOrigen == 'l' && unidadDestino == 'ml') return cantidad * 1000;
+    }
+    // Unidades
+    if (unidadOrigen == 'u' && unidadDestino == 'u') return cantidad;
+
+    // Incompatibles
+    return -1; // Señal de incompatibilidad
   }
 
   @override
@@ -479,7 +564,7 @@ class _formularioState extends State<formulario> {
                                     ),
                                     const SizedBox(height: 30),
                                     const Text(
-                                      'Consumibles a usar',
+                                      'Receta a usar',
                                       style: TextStyle(
                                           color: Colors.white,
                                           fontSize: 12,
@@ -493,25 +578,108 @@ class _formularioState extends State<formulario> {
                                         color: Colors.white,
                                         borderRadius: BorderRadius.circular(5),
                                       ),
-                                      child: TextField(
-                                        controller: consumiblesController,
-                                        readOnly: true,
-                                        onTap: _seleccionarConsumibles,
-                                        decoration: const InputDecoration(
-                                          prefixIcon: Icon(Icons.inventory),
-                                          hintText:
-                                              'Selecciona los consumibles',
-                                          hintStyle:
-                                              TextStyle(color: Colors.black54),
-                                          border: InputBorder.none,
-                                          contentPadding: EdgeInsets.only(
-                                              left: 10, bottom: 10),
-                                        ),
+                                      child:
+                                          RawAutocomplete<Map<String, dynamic>>(
+                                        textEditingController:
+                                            recetasController,
+                                        focusNode: FocusNode(),
+                                        optionsBuilder: (TextEditingValue
+                                            textEditingValue) {
+                                          final input = textEditingValue.text
+                                              .toLowerCase();
+                                          if (input.isEmpty)
+                                            return const Iterable.empty();
+                                          return recetas.where((r) =>
+                                              (r['nombre'] ?? '')
+                                                  .toString()
+                                                  .toLowerCase()
+                                                  .contains(input));
+                                        },
+                                        displayStringForOption: (r) =>
+                                            r['nombre'] ?? '',
+                                        onSelected: (r) {
+                                          setState(() {
+                                            recetaSeleccionadaId = r['id'];
+                                            recetasController.text =
+                                                r['nombre'] ?? '';
+                                            consumiblesDeReceta =
+                                                List<Map<String, dynamic>>.from(
+                                                    r['ingredientes']);
+                                            porcionBase = (r['porcion'] as num?)
+                                                    ?.toDouble() ??
+                                                1.0;
+                                            porcionBaseUnidad =
+                                                r['unidadPorcion'] ?? 'U';
+                                            _calcularCostoTotal();
+                                          });
+                                        },
+                                        fieldViewBuilder: (context, controller,
+                                            focusNode, onFieldSubmitted) {
+                                          return Container(
+                                            width: 250,
+                                            height: 35,
+                                            decoration: BoxDecoration(
+                                              color: Colors.white,
+                                              borderRadius:
+                                                  BorderRadius.circular(5),
+                                            ),
+                                            child: TextField(
+                                              controller: controller,
+                                              focusNode: focusNode,
+                                              style: const TextStyle(
+                                                  color: Colors.black),
+                                              decoration: const InputDecoration(
+                                                prefixIcon: Icon(Icons.search),
+                                                hintText: 'Buscar receta',
+                                                hintStyle: TextStyle(
+                                                    color: Colors.black54),
+                                                border: InputBorder.none,
+                                                contentPadding: EdgeInsets.only(
+                                                    left: 10, bottom: 10),
+                                              ),
+                                            ),
+                                          );
+                                        },
+                                        optionsViewBuilder:
+                                            (context, onSelected, options) {
+                                          return Align(
+                                            alignment: Alignment.topLeft,
+                                            child: Material(
+                                              elevation: 4,
+                                              borderRadius:
+                                                  BorderRadius.circular(10),
+                                              child: ConstrainedBox(
+                                                constraints:
+                                                    const BoxConstraints(
+                                                        maxHeight: 200,
+                                                        maxWidth: 250),
+                                                child: ListView.separated(
+                                                  padding:
+                                                      const EdgeInsets.all(8),
+                                                  shrinkWrap: true,
+                                                  itemCount: options.length,
+                                                  itemBuilder:
+                                                      (context, index) {
+                                                    final r = options
+                                                        .elementAt(index);
+                                                    return ListTile(
+                                                      title: Text(r['nombre']),
+                                                      onTap: () =>
+                                                          onSelected(r),
+                                                    );
+                                                  },
+                                                  separatorBuilder: (_, __) =>
+                                                      const Divider(height: 1),
+                                                ),
+                                              ),
+                                            ),
+                                          );
+                                        },
                                       ),
                                     ),
                                     const SizedBox(height: 20),
                                     const Text(
-                                      'Ingrese la cantidad usada de cada consumible',
+                                      'Lista de Ingredientes',
                                       style: TextStyle(
                                           color: Colors.white,
                                           fontSize: 12,
@@ -525,89 +693,20 @@ class _formularioState extends State<formulario> {
                                         color: Colors.white,
                                         borderRadius: BorderRadius.circular(5),
                                       ),
-                                      child: SingleChildScrollView(
-                                        child: Column(
-                                          children: _consumiblesSeleccionados
-                                              .entries
-                                              .map((entry) {
-                                            final consumible = entry.key;
-                                            final controller = entry.value;
-                                            return ListTile(
-                                              title: Text(consumible,
-                                                  style: const TextStyle(
-                                                      fontSize: 14,
-                                                      fontWeight:
-                                                          FontWeight.bold)),
-                                              trailing: Row(
-                                                mainAxisSize: MainAxisSize.min,
-                                                children: [
-                                                  SizedBox(
-                                                    width: 70,
-                                                    child: TextField(
-                                                      controller: controller,
-                                                      keyboardType:
-                                                          TextInputType.number,
-                                                      onChanged: (_) =>
-                                                          setState(() {
-                                                        _calcularCostoTotal();
-                                                      }),
-                                                      style: const TextStyle(
-                                                          color: Colors.black),
-                                                      decoration:
-                                                          InputDecoration(
-                                                        contentPadding:
-                                                            const EdgeInsets
-                                                                .only(
-                                                                left: 10,
-                                                                bottom: 10),
-                                                        errorText: () {
-                                                          final cantidad =
-                                                              double.tryParse(
-                                                                      controller
-                                                                          .text) ??
-                                                                  0.0;
-                                                          final stock =
-                                                              _consumiblesDisponibles
-                                                                  .firstWhere((c) =>
-                                                                      c.nombre ==
-                                                                      consumible)
-                                                                  .stock;
-                                                          return cantidad >
-                                                                  stock
-                                                              ? 'NoDisp'
-                                                              : null;
-                                                        }(),
-                                                      ),
-                                                    ),
-                                                  ),
-                                                  const SizedBox(width: 6),
-                                                  Text(
-                                                    _consumiblesDisponibles
-                                                        .firstWhere((c) =>
-                                                            c.nombre ==
-                                                            consumible)
-                                                        .unidad,
-                                                    style: const TextStyle(
-                                                        fontWeight:
-                                                            FontWeight.bold),
-                                                  ),
-                                                  IconButton(
-                                                    icon: const Icon(
-                                                        Icons.delete,
-                                                        color: Colors.red,
-                                                        size: 24),
-                                                    onPressed: () {
-                                                      setState(() {
-                                                        _consumiblesSeleccionados
-                                                            .remove(consumible);
-                                                      });
-                                                    },
-                                                  ),
-                                                ],
-                                              ),
-                                            );
-                                          }).toList(),
-                                        ),
+                                      child: ListView.builder(
+                                        itemCount: consumiblesDeReceta.length,
+                                        itemBuilder: (context, index) {
+                                          final c = consumiblesDeReceta[index];
+                                          return ListTile(
+                                            title: Text('${c['nombre']}',
+                                                style: const TextStyle(
+                                                    fontSize: 14,
+                                                    fontWeight:
+                                                        FontWeight.bold)),
+                                            subtitle: Text(
+                                                'Cantidad: ${c['cantidad']} ${c['unidad']}'),
+                                          );
+                                        },
                                       ),
                                     ),
                                   ],
@@ -641,6 +740,9 @@ class _formularioState extends State<formulario> {
                                                 fontSize: 14,
                                                 color: Color(0xff000000)),
                                             controller: stockController,
+                                            onChanged: (value) {
+                                              _calcularCostoTotal();
+                                            },
                                             decoration: const InputDecoration(
                                               border: InputBorder.none,
                                               contentPadding: EdgeInsets.only(
@@ -648,7 +750,6 @@ class _formularioState extends State<formulario> {
                                             ),
                                           ),
                                         ),
-                                        //controller: controller
                                         const SizedBox(width: 10),
                                         Container(
                                           padding: EdgeInsets.only(left: 10),
@@ -690,6 +791,12 @@ class _formularioState extends State<formulario> {
                                           ),
                                         ),
                                       ],
+                                    ),
+                                    const SizedBox(height: 20),
+                                    Text(
+                                      'Unidad base de la receta: $porcionBaseUnidad',
+                                      style: const TextStyle(
+                                          color: Colors.white, fontSize: 12),
                                     ),
                                     const SizedBox(height: 50),
                                     const Text(

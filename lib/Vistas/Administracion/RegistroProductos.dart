@@ -3,9 +3,9 @@ import 'package:http/http.dart' as http;
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
-import 'package:proyecto_cine_equipo3/Vistas/Administracion/Menu.dart';
-import 'package:proyecto_cine_equipo3/Vistas/Services/Multiseleccion.dart';
 import 'dart:io';
+
+import 'package:proyecto_cine_equipo3/Vistas/Administracion/ListaProductos.dart';
 
 void main() {
   runApp(const Registroproductos());
@@ -17,15 +17,15 @@ class Registroproductos extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-        body: formulario(),
-      );
+      body: formulario(),
+    );
   }
 }
 
 class BusquedaDesplegable extends StatefulWidget {
   final String label;
   final List<dynamic> items;
-  final Function(String) onItemSelected;
+  final Function(Map<String, dynamic>) onItemSelected;
   final TextEditingController controller;
 
   const BusquedaDesplegable({
@@ -45,6 +45,17 @@ class _BusquedaDesplegableState extends State<BusquedaDesplegable> {
   OverlayEntry? _overlayEntry;
   bool _showOverlay = false;
   List<dynamic> _filteredItems = [];
+  //final FocusNode _focusNode = FocusNode();
+
+  @override
+  void initState() {
+    super.initState();
+    /* _focusNode.addListener(() {
+      if (!_focusNode.hasFocus) {
+        _removeOverlay();
+      }
+    });*/
+  }
 
   void _updateOverlay() {
     _overlayEntry?.markNeedsBuild();
@@ -94,9 +105,11 @@ class _BusquedaDesplegableState extends State<BusquedaDesplegable> {
                     return ListTile(
                       title: Text(item['nombre']),
                       onTap: () {
-                        widget.onItemSelected(item['nombre']);
-                        widget.controller.clear();
                         _removeOverlay();
+                        WidgetsBinding.instance.addPostFrameCallback((_) {
+                          widget.onItemSelected(item);
+                          widget.controller.clear();
+                        });
                       },
                     );
                   },
@@ -120,6 +133,7 @@ class _BusquedaDesplegableState extends State<BusquedaDesplegable> {
 
   @override
   void dispose() {
+    // _focusNode.dispose();
     _removeOverlay();
     super.dispose();
   }
@@ -129,6 +143,7 @@ class _BusquedaDesplegableState extends State<BusquedaDesplegable> {
     return CompositedTransformTarget(
       link: _layerLink,
       child: TextField(
+        //focusNode: _focusNode,
         controller: widget.controller,
         decoration: InputDecoration(
           hintText: widget.label,
@@ -190,17 +205,75 @@ class _formularioState extends State<formulario> {
   String dropdownValue = 'U';
   String dropdownValue2 = 'gr';
   String? dropdownValue3;
+  final Map<String, TextEditingController> _cantidadControllersConsumibles = {};
+  final Map<String, String> _unidadSeleccionadaConsumibles = {};
 
-  List<String> _consumibles = [];
-
-  List<String> _intermedios = [
-    "Palomitas de Mantequilla",
-    "Palomitas de Queso",
-    "Palomitas de Caramelo"
-  ];
+  final Map<String, TextEditingController> _cantidadControllersIntermedios = {};
+  final Map<String, String> _unidadSeleccionadaIntermedios = {};
 
   Future<void> _guardarProducto() async {
-    // Arma el JSON con los valores de los campos
+    final List<Map<String, dynamic>> insumos = [];
+    for (final consumible in _consumiblesSeleccionados) {
+      final cantidad = double.tryParse(
+              _cantidadControllersConsumibles[consumible['nombre']]?.text ??
+                  '0') ??
+          0;
+      if (cantidad <= 0) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+              content: Text(
+                  'Ingresa una cantidad válida para "${consumible['nombre']}"')),
+        );
+        return;
+      }
+    }
+    for (final intermedio in _intermediosSeleccionados) {
+      final cantidad = double.tryParse(
+              _cantidadControllersIntermedios[intermedio['nombre']]?.text ??
+                  '0') ??
+          0;
+      if (cantidad <= 0) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+              content: Text(
+                  'Ingresa una cantidad válida para "${intermedio['nombre']}"')),
+        );
+        return;
+      }
+    }
+    final int stockProducto = int.tryParse(stockController.text) ?? 0;
+    for (final consumible in _consumiblesSeleccionados) {
+      final cantidadPorProducto = double.tryParse(
+              _cantidadControllersConsumibles[consumible['nombre']]?.text ??
+                  '0') ??
+          0;
+      final cantidadTotal = cantidadPorProducto * stockProducto;
+      insumos.add({
+        'nombre': consumible['nombre'],
+        'cantidad': cantidadTotal,
+        'unidad': _unidadSeleccionadaConsumibles[consumible['nombre']] ??
+            consumible['unidad'],
+        'tipo': 'consumible',
+      });
+    }
+    for (final intermedio in _intermediosSeleccionados) {
+      final cantidadPorProducto = double.tryParse(
+              _cantidadControllersIntermedios[intermedio['nombre']]?.text ??
+                  '0') ??
+          0;
+      final cantidadTotal = cantidadPorProducto * stockProducto;
+      insumos.add({
+        'nombre': intermedio['nombre'],
+        'cantidad': cantidadTotal,
+        'unidad': _unidadSeleccionadaIntermedios[intermedio['nombre']] ??
+            intermedio['unidad'],
+        'tipo': 'intermedio',
+      });
+    }
+    String? imageUrl;
+    if (_imagen != null) {
+      imageUrl = await subirImagen(_imagen!);
+    }
     final Map<String, dynamic> data = {
       'nombre': nombreController.text,
       'tamano': dropdownValue3,
@@ -208,7 +281,8 @@ class _formularioState extends State<formulario> {
       'porcionUnidad': dropdownValue2,
       'stock': int.tryParse(stockController.text) ?? 0,
       'precio': double.tryParse(precioUController.text) ?? 0.0,
-      'imagen': _imagen?.path ?? '',
+      'imagen': imageUrl ?? '',
+      'insumos': insumos,
     };
 
     final uri = Uri.parse('http://localhost:3000/api/admin/addProducto');
@@ -222,10 +296,10 @@ class _formularioState extends State<formulario> {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('✅ Producto guardado')),
         );
-        Navigator.push(
+        Navigator.pushReplacement(
           context,
-          MaterialPageRoute(builder: (context) => Menu()),
-        ); // o lo que quieras hacer luego
+          MaterialPageRoute(builder: (_) => const ListaProductos()),
+        );
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Error: ${resp.statusCode}')),
@@ -238,8 +312,20 @@ class _formularioState extends State<formulario> {
     }
   }
 
-  List<String> _consumiblesSeleccionados = [];
-  List<String> _intermediosSeleccionados = [];
+  bool _esUnidadCompatible(String seleccionada, String real) {
+    seleccionada = seleccionada.toLowerCase();
+    real = real.toLowerCase();
+    if (seleccionada == real) return true;
+    if ((seleccionada == 'kg' && real == 'gr') ||
+        (seleccionada == 'gr' && real == 'kg')) return true;
+    if ((seleccionada == 'l' && real == 'ml') ||
+        (seleccionada == 'ml' && real == 'l')) return true;
+    if (seleccionada == 'u' && real == 'u') return true;
+    return false;
+  }
+
+  List<Map<String, dynamic>> _consumiblesSeleccionados = [];
+  List<Map<String, dynamic>> _intermediosSeleccionados = [];
   List<dynamic> intermedios = [];
   final TextEditingController buscadorIntermediosController =
       TextEditingController();
@@ -391,7 +477,15 @@ class _formularioState extends State<formulario> {
     );
   }
 
-  Widget _buildSeleccionados(List<String> lista, bool esConsumible) {
+  Widget _buildSeleccionados(
+      List<Map<String, dynamic>> lista, bool esConsumible) {
+    final cantidadControllers = esConsumible
+        ? _cantidadControllersConsumibles
+        : _cantidadControllersIntermedios;
+    final unidadSeleccionada = esConsumible
+        ? _unidadSeleccionadaConsumibles
+        : _unidadSeleccionadaIntermedios;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -411,12 +505,17 @@ class _formularioState extends State<formulario> {
           child: SingleChildScrollView(
             child: Column(
               children: lista.map((item) {
+                cantidadControllers.putIfAbsent(
+                    item['nombre'], () => TextEditingController());
+                unidadSeleccionada.putIfAbsent(
+                    item['nombre'], () => item['unidad'] ?? 'U');
                 return ListTile(
-                  title: Text(item,
+                  title: Text(item['nombre'],
                       style: const TextStyle(
                           color: Colors.black,
                           fontSize: 12,
                           fontWeight: FontWeight.bold)),
+                  subtitle: Text('Unidad base: ${item['unidad'] ?? ''}'),
                   trailing: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
@@ -429,7 +528,9 @@ class _formularioState extends State<formulario> {
                           borderRadius: BorderRadius.circular(5),
                         ),
                         child: TextField(
+                          controller: cantidadControllers[item['nombre']],
                           cursorColor: Colors.black,
+                          keyboardType: TextInputType.number,
                           style: const TextStyle(color: Colors.black),
                           decoration: const InputDecoration(
                             border: InputBorder.none,
@@ -439,12 +540,40 @@ class _formularioState extends State<formulario> {
                         ),
                       ),
                       const SizedBox(width: 6),
-                      const Text("Unidad"),
+                      DropdownButton<String>(
+                        value: unidadSeleccionada[item['nombre']],
+                        items: ['U', 'Kg', 'gr', 'L', 'ml']
+                            .map((u) => DropdownMenuItem(
+                                  value: u,
+                                  child: Text(u),
+                                ))
+                            .toList(),
+                        onChanged: (val) {
+                          final unidadReal = item['unidad'] ?? 'U';
+                          final compatible =
+                              _esUnidadCompatible(val!, unidadReal);
+                          if (!compatible) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                  content: Text(
+                                      'Unidad incompatible con el insumo/intermedio')),
+                            );
+                          } else {
+                            setState(() {
+                              unidadSeleccionada[item['nombre']] = val!;
+                            });
+                          }
+                        },
+                      ),
                       IconButton(
                         icon: const Icon(Icons.delete,
                             color: Colors.red, size: 24),
                         onPressed: () {
-                          setState(() => lista.remove(item));
+                          setState(() {
+                            lista.remove(item);
+                            cantidadControllers.remove(item['nombre']);
+                            unidadSeleccionada.remove(item['nombre']);
+                          });
                         },
                       ),
                     ],
@@ -460,8 +589,8 @@ class _formularioState extends State<formulario> {
 
   Future<void> fetchIntermedios() async {
     try {
-      final response =
-          await http.get(Uri.parse('http://localhost:3000/api/admin/getIntermedios'));
+      final response = await http
+          .get(Uri.parse('http://localhost:3000/api/admin/getIntermedios'));
       if (response.statusCode == 200) {
         setState(() {
           intermedios = json.decode(response.body);
@@ -475,8 +604,8 @@ class _formularioState extends State<formulario> {
 
   Future<void> fetchConsumibles() async {
     try {
-      final response =
-          await http.get(Uri.parse('http://localhost:3000/api/admin/getConsumibles'));
+      final response = await http
+          .get(Uri.parse('http://localhost:3000/api/admin/getConsumibles'));
       if (response.statusCode == 200) {
         setState(() {
           consumibles = json.decode(response.body);
@@ -499,6 +628,21 @@ class _formularioState extends State<formulario> {
         Exception('No image selected.');
       }
     });
+  }
+
+  Future<String?> subirImagen(File imagen) async {
+    final request = http.MultipartRequest(
+      'POST',
+      Uri.parse('http://localhost:3000/api/admin/uploadImage'),
+    );
+    request.files.add(await http.MultipartFile.fromPath('poster', imagen.path));
+    final response = await request.send();
+    if (response.statusCode == 200) {
+      final respStr = await response.stream.bytesToString();
+      final respJson = jsonDecode(respStr);
+      return respJson['imageUrl'];
+    }
+    return null;
   }
 
   @override
@@ -636,8 +780,6 @@ class _formularioState extends State<formulario> {
                             ),
 
                             const SizedBox(width: 30),
-
-                            // 🧱 Columna principal de contenido
                             Expanded(
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -664,12 +806,15 @@ class _formularioState extends State<formulario> {
                                         items: List.from(consumibles),
                                         controller:
                                             buscadorConsumiblesController,
-                                        onItemSelected: (String seleccion) {
+                                        // Consumibles
+                                        onItemSelected: (item) {
                                           setState(() {
-                                            if (!_consumiblesSeleccionados
-                                                .contains(seleccion)) {
-                                              _consumiblesSeleccionados
-                                                  .add(seleccion);
+                                            if (!_consumiblesSeleccionados.any(
+                                                (c) =>
+                                                    c['nombre'] ==
+                                                    item['nombre'])) {
+                                              _consumiblesSeleccionados.add(
+                                                  item); // item es el objeto completo
                                             }
                                           });
                                         },
@@ -684,8 +829,6 @@ class _formularioState extends State<formulario> {
                             ),
 
                             const SizedBox(width: 15),
-
-                            // 🧱 Columna derecha: Stock, Precio, Intermedios
                             Expanded(
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -711,12 +854,14 @@ class _formularioState extends State<formulario> {
                                         items: List.from(intermedios),
                                         controller:
                                             buscadorIntermediosController,
-                                        onItemSelected: (String seleccion) {
+                                        onItemSelected: (item) {
                                           setState(() {
-                                            if (!_intermediosSeleccionados
-                                                .contains(seleccion)) {
+                                            if (!_intermediosSeleccionados.any(
+                                                (i) =>
+                                                    i['nombre'] ==
+                                                    item['nombre'])) {
                                               _intermediosSeleccionados
-                                                  .add(seleccion);
+                                                  .add(item);
                                             }
                                           });
                                         },
@@ -736,7 +881,7 @@ class _formularioState extends State<formulario> {
                       Align(
                         alignment: Alignment.centerRight,
                         child: ElevatedButton(
-                          onPressed: _guardarProducto, // ← aquí
+                          onPressed: _guardarProducto,
                           style: ElevatedButton.styleFrom(
                             backgroundColor: const Color(0xff14AE5C),
                             shape: RoundedRectangleBorder(
